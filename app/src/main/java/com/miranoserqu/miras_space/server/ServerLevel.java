@@ -107,6 +107,9 @@ public class ServerLevel extends Level {
      * Note: Actual game logic is handled in processPlayerInput which is called from the client tick.
      */
     private void tick() {
+        for(ServerPlayer player : this.players.values()){
+            player.tick();
+        }
         // In a real implementation with multiple clients, we would:
         // 1. Process any received inputs
         // 2. Update game logic

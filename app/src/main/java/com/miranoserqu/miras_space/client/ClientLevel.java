@@ -3,12 +3,10 @@ package com.miranoserqu.miras_space.client;
 import com.miranoserqu.miras_space.Game;
 import com.miranoserqu.miras_space.Option;
 import com.miranoserqu.miras_space.game.Level;
-import com.miranoserqu.miras_space.game.Player;
 import com.miranoserqu.miras_space.network.InputPayload;
-import com.miranoserqu.miras_space.server.ServerPlayer;
 import com.miranoserqu.miras_space.network.Payload;
+import com.miranoserqu.miras_space.registries.Attributes;
 import com.miranoserqu.miras_space.resource.Resource;
-import com.miranoserqu.miras_space.server.ServerLevel;
 
 import javax.swing.*;
 import java.awt.*;
@@ -16,7 +14,6 @@ import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 public class ClientLevel extends Level {
     private static final int WINDOW_WIDTH = 800;
@@ -40,11 +37,14 @@ public class ClientLevel extends Level {
     private double aimTargetY = 0;
     private double worldOffsetX = 0;
     private double worldOffsetY = 0;
+    private double lastOrientation = 0;
 
     private boolean debugOverlay = false;
-    private double lastAccelX = 0;
-    private double lastAccelY = 0;
-    private double tickRate = 0;
+    private int frameCount = 0;
+    private int currentFPS = 0;
+    private long now = System.nanoTime();
+    private long lastTime = System.nanoTime();
+    private long lastSecond = System.nanoTime();
     private double cameraShakeX = 0;
     private double cameraShakeY = 0;
     private double accelMagnitude = 0;
@@ -246,10 +246,14 @@ public class ClientLevel extends Level {
         cameraShakeX = Math.sin(shakePhase) * camShakeMag;
         cameraShakeY = Math.cos(shakePhase * 0.7) * camShakeMag;
 
-        worldOffsetX += vx;
-        worldOffsetY += vy;
+        this.now = System.nanoTime();
+
+        worldOffsetX = localPlayer.getX() + vx * (now - lastTime) / 1000000;
+        worldOffsetY = localPlayer.getY() + vy * (now - lastTime) / 1000000;
 
         gamePanel.repaint();
+
+        this.lastTime = now;
     }
 
     private class GamePanel extends JPanel {
@@ -298,8 +302,8 @@ public class ClientLevel extends Level {
                 if (offsetY < 0) offsetY += tileH;
 
                 // Camera offset + ship vibration when accelerating for speed sensation
-                double camOffsetX = localPlayer.getVelocityX() * 0.15 + cameraShakeX;
-                double camOffsetY = localPlayer.getVelocityY() * 0.15 + cameraShakeY;
+                double camOffsetX = ClientLevel.this.localPlayer.getAccelerationX() * 0.5 + cameraShakeX;
+                double camOffsetY = ClientLevel.this.localPlayer.getAccelerationY() * 0.5 + cameraShakeY;
 
                 int startCol = (int) (Math.floor((-offsetX + camOffsetX) / tileW)) - 1;
                 int startRow = (int) (Math.floor((-offsetY + camOffsetY) / tileH)) - 1;
@@ -324,7 +328,7 @@ public class ClientLevel extends Level {
                 g2d.setColor(new Color(0, 150, 255, 220)); // blue velocity
                 drawArrow(g2d, centerX, centerY, localPlayer.getVelocityX() * 8, localPlayer.getVelocityY() * 8);
                 g2d.setColor(new Color(255, 50, 50, 220)); // red acceleration
-                drawArrow(g2d, centerX, centerY, lastAccelX * 60, lastAccelY * 60);
+                drawArrow(g2d, centerX, centerY, localPlayer.getAccelerationX() * 60, localPlayer.getAccelerationY() * 60);
 
                 drawDebugText(g2d);
             }
@@ -348,7 +352,8 @@ public class ClientLevel extends Level {
             double speedCamX = localPlayer.getVelocityX() * 0.15 + cameraShakeX;
             double speedCamY = localPlayer.getVelocityY() * 0.15 + cameraShakeY;
             g2d.translate(centerX + speedCamX, centerY + speedCamY);
-            g2d.rotate((float) localPlayer.getOrientation());
+            g2d.rotate((float) localPlayer.getOrientation() + (localPlayer.getOrientation() - lastOrientation) * (now - lastTime) / 1000000);
+            lastOrientation = localPlayer.getOrientation();
             g2d.setColor(new Color(0, 255, 0, 200));
             int[] xPts = {-25, 25, 0};
             int[] yPts = {0, 0, -25};
@@ -391,16 +396,27 @@ public class ClientLevel extends Level {
         private void drawDebugText(Graphics2D g2d) {
             double vx = localPlayer.getVelocityX();
             double vy = localPlayer.getVelocityY();
+            double accelerationX = localPlayer.getAccelerationX();
+            double accelerationY = localPlayer.getAccelerationY();
             double speed = Math.hypot(vx, vy);
-            double accelMagnitude = Math.hypot(lastAccelX, lastAccelY);
+            double accelMagnitude = Math.hypot(accelerationX, accelerationY);
+
+            frameCount++;
+
+            // Si ha pasado 1 segundo (1,000,000,000 nanosegundos)
+            if (now - lastSecond >= 1_000_000_000L) {
+                currentFPS = frameCount; // Actualiza el valor a mostrar en pantalla
+                frameCount = 0;          // Reinicia el contador
+                lastSecond = now;          // Adelanta el reloj
+            }
 
             g2d.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 13));
             String[] lines = {
                     String.format("Pos:    (%.2f, %.2f)", localPlayer.getX(), localPlayer.getY()),
                     String.format("Vel:    (%.3f, %.3f)  |v|=%.3f", vx, vy, speed),
-                    String.format("Accel:  (%.3f, %.3f)  |a|=%.3f", lastAccelX, lastAccelY, accelMagnitude),
+                    String.format("Accel:  (%.3f, %.3f)  |a|=%.3f", accelerationX, accelerationY, accelMagnitude),
                     String.format("Angle:  %.3f rad", localPlayer.getOrientation()),
-                    String.format("FPS:    %.1f", tickRate),
+                    "FPS:    " + currentFPS,
                     String.format("Mode:   %s", useGamepad ? "GAMEPAD" : "MOUSE+KB")
             };
 

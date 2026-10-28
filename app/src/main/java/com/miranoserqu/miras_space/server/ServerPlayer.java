@@ -1,11 +1,8 @@
 package com.miranoserqu.miras_space.server;
 
-import com.miranoserqu.miras_space.Game;
 import com.miranoserqu.miras_space.event.SubscribeEvent;
-import com.miranoserqu.miras_space.game.Level;
 import com.miranoserqu.miras_space.game.Player;
 import com.miranoserqu.miras_space.network.InputPayload;
-import com.miranoserqu.miras_space.network.Payload;
 import com.miranoserqu.miras_space.network.PlayerUpdatePayload;
 import com.miranoserqu.miras_space.tag.AttributeModifier;
 
@@ -23,13 +20,15 @@ import static com.miranoserqu.miras_space.tag.AttributeModifier.ModifierType.*;
  */
 public class ServerPlayer extends Player {
 
-    public static final double BASE_MAX_SPEED_SQUARED = Math.pow(20, 2); // 8 px/s max
+    public static final double BASE_MAX_SPEED = 20; // 8 px/s max
     public static final double BASE_FORWARD_ACCELERATION = 0.5;        // ~2.4 px/s², reaches max in ~3.3s
     public static final double BASE_REVERSE_ACCELERATION = 0.2;
     public static final double BASE_LATERAL_SPEED = 0.04;
-    public static final double BASE_ROTATION_SPEED = 5;
+    public static final double BASE_ROTATION_SPEED = 10;
 
-    private ServerLevel level;
+    private final ServerLevel level;
+
+    private boolean processedInputs = false;
 
     // Acceleration applied on the last tick (pixels per tick^2)
     private double accelerationX;
@@ -58,7 +57,7 @@ public class ServerPlayer extends Player {
     public ServerPlayer(double x, double y, double orientation, double velocityX, double velocityY, UUID uuid, String name, ServerLevel level){
         super(x, y, orientation, velocityX, velocityY, uuid, name);
         this.level = level;
-        this.attributeModifiers.add(new AttributeModifier(MAX_SPEED_SQUARED.get(), UUID.randomUUID(), "player:base_max_speed_squared", ADD_BASE, BASE_MAX_SPEED_SQUARED));
+        this.attributeModifiers.add(new AttributeModifier(MAX_SPEED.get(), UUID.randomUUID(), "player:base_max_speed", ADD_BASE, BASE_MAX_SPEED));
         this.attributeModifiers.add(new AttributeModifier(FORWARD_ACCELERATION.get(), UUID.randomUUID(), "player:base_forward_acceleration", ADD_BASE, BASE_FORWARD_ACCELERATION));
         this.attributeModifiers.add(new AttributeModifier(REVERSE_ACCELERATION.get(), UUID.randomUUID(), "player:base_reverse_acceleration", ADD_BASE, BASE_REVERSE_ACCELERATION));
         this.attributeModifiers.add(new AttributeModifier(LATERAL_SPEED.get(), UUID.randomUUID(), "player:base_lateral_speed", ADD_BASE, BASE_LATERAL_SPEED));
@@ -74,7 +73,7 @@ public class ServerPlayer extends Player {
     public ServerPlayer(UUID uuid, String name, ServerLevel level){
         super(uuid, name);
         this.level = level;
-        this.attributeModifiers.add(new AttributeModifier(MAX_SPEED_SQUARED.get(), UUID.randomUUID(), "player:base_max_speed_squared", ADD_BASE, BASE_MAX_SPEED_SQUARED));
+        this.attributeModifiers.add(new AttributeModifier(MAX_SPEED.get(), UUID.randomUUID(), "player:base_max_speed", ADD_BASE, BASE_MAX_SPEED));
         this.attributeModifiers.add(new AttributeModifier(FORWARD_ACCELERATION.get(), UUID.randomUUID(), "player:base_forward_acceleration", ADD_BASE, BASE_FORWARD_ACCELERATION));
         this.attributeModifiers.add(new AttributeModifier(REVERSE_ACCELERATION.get(), UUID.randomUUID(), "player:base_reverse_acceleration", ADD_BASE, BASE_REVERSE_ACCELERATION));
         this.attributeModifiers.add(new AttributeModifier(LATERAL_SPEED.get(), UUID.randomUUID(), "player:base_lateral_speed", ADD_BASE, BASE_LATERAL_SPEED));
@@ -87,6 +86,13 @@ public class ServerPlayer extends Player {
      */
     @SubscribeEvent
     public void onPlayerInput(InputPayload payload) {
+
+        if(processedInputs){
+            return;
+        }
+
+        this.processedInputs = true;
+
         List<Integer> inputs = payload.inputs;
 
         // Translate the held keys into thrust axes
@@ -97,11 +103,11 @@ public class ServerPlayer extends Player {
 
         for(int key : inputs){
             if(key == KeyEvent.VK_CONTROL && this.velocityX != 0 && this.velocityY != 0){
-                double velocity = Math.sqrt(Math.pow(this.velocityX, 2) + Math.pow(this.velocityY, 2));
+                double velocity = Math.hypot(velocityX, velocityY);
                 double movementX = this.velocityX / velocity;
                 double movementY = this.velocityY / velocity;
 
-                double deaccel = REVERSE_ACCELERATION.get().getValue(this.attributeModifiers);
+                double deaccel = FORWARD_ACCELERATION.get().getValue(this.attributeModifiers);
 
                 if(velocity <= deaccel){
                     this.velocityX = 0;
@@ -113,6 +119,14 @@ public class ServerPlayer extends Player {
 
                 this.velocityX -= movementX * deaccel;
                 this.velocityY -= movementY * deaccel;
+
+                this.x += this.velocityX;
+                this.y += this.velocityY;
+
+                updateOrientation(Math.atan2(-movementY, -movementX));
+
+                PlayerUpdatePayload updatePayload = new PlayerUpdatePayload(this.uuid, this.x, this.y, this.orientation, this.velocityX, this.velocityY, this.accelerationX, this.accelerationY);
+                this.level.getPlayer(this.uuid).level.getGame().getClientBus().post(updatePayload);
 
                 return;
             }
@@ -158,13 +172,11 @@ public class ServerPlayer extends Player {
         this.velocityY = this.velocityY + this.accelerationY;
 
         // Speed management
-        double maxSpeedSquared = MAX_SPEED_SQUARED.get().getValue(this.attributeModifiers) * (turbo ? 4 : 1);
-        double speedSq = velocityX * velocityX + velocityY * velocityY;
-        double speed = Math.sqrt(speedSq);
-        double maxSpeed = Math.sqrt(maxSpeedSquared);
+        double maxSpeed = MAX_SPEED.get().getValue(this.attributeModifiers) * (turbo ? 2 : 1);
+        double speed = Math.hypot(velocityX, velocityY);
         double threshold = maxSpeed * 1.15;
 
-        if (speedSq > maxSpeedSquared && maxSpeedSquared > 0) {
+        if (speed > maxSpeed && maxSpeed > 0) {
             double velOrientation = Math.atan2(velocityY, velocityX);
 
             if (speed > threshold) {
@@ -198,6 +210,10 @@ public class ServerPlayer extends Player {
 
         PlayerUpdatePayload updatePayload = new PlayerUpdatePayload(this.uuid, this.x, this.y, this.orientation, this.velocityX, this.velocityY, this.accelerationX, this.accelerationY);
         this.level.getPlayer(this.uuid).level.getGame().getClientBus().post(updatePayload);
+    }
+
+    public void tick(){
+        this.processedInputs = false;
     }
 
     /**

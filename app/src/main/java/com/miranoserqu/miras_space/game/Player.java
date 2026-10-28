@@ -11,6 +11,8 @@ public class Player {
     protected double orientation;
     protected double velocityX;
     protected double velocityY;
+    protected double accelerationX;
+    protected double accelerationY;
     protected final UUID uuid;
     protected final String name;
 
@@ -54,6 +56,14 @@ public class Player {
 
     public String getName() {
         return name;
+    }
+
+    public double getAccelerationX(){
+        return this.accelerationX;
+    }
+
+    public double getAccelerationY(){
+        return this.accelerationY;
     }
 
 }

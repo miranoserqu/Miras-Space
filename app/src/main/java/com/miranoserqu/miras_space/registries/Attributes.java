@@ -6,7 +6,7 @@ import java.util.function.Supplier;
 
 public class Attributes {
 
-    public static final Supplier<DoubleAttribute> MAX_SPEED_SQUARED = () -> new DoubleAttribute("max_forward_speed");
+    public static final Supplier<DoubleAttribute> MAX_SPEED = () -> new DoubleAttribute("max_forward_speed");
     public static final Supplier<DoubleAttribute> FORWARD_ACCELERATION = () -> new DoubleAttribute("forward_acceleration");
     public static final Supplier<DoubleAttribute> REVERSE_ACCELERATION = () -> new DoubleAttribute("reverse_acceleration");
     public static final Supplier<DoubleAttribute> LATERAL_SPEED = () -> new DoubleAttribute("lateral_acceleration");

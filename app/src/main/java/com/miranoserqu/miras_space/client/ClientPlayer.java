@@ -29,6 +29,8 @@ public class ClientPlayer extends Player {
         this.velocityX = payload.vX;
         this.velocityY = payload.vY;
         this.orientation = payload.angle;
+        this.accelerationX = payload.aX;
+        this.accelerationY = payload.aY;
     }
 
 }
