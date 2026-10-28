@@ -1,10 +1,12 @@
 package com.miranoserqu.miras_space.server;
 
+import com.miranoserqu.miras_space.Game;
 import com.miranoserqu.miras_space.event.SubscribeEvent;
 import com.miranoserqu.miras_space.game.Level;
 import com.miranoserqu.miras_space.game.Player;
 import com.miranoserqu.miras_space.network.InputPayload;
 import com.miranoserqu.miras_space.network.Payload;
+import com.miranoserqu.miras_space.network.PlayerUpdatePayload;
 import com.miranoserqu.miras_space.tag.AttributeModifier;
 
 import java.awt.event.KeyEvent;
@@ -26,6 +28,8 @@ public class ServerPlayer extends Player {
     public static final double BASE_REVERSE_ACCELERATION = 0.2;
     public static final double BASE_LATERAL_SPEED = 0.04;
     public static final double BASE_ROTATION_SPEED = 5;
+
+    private ServerLevel level;
 
     // Acceleration applied on the last tick (pixels per tick^2)
     private double accelerationX;
@@ -51,8 +55,9 @@ public class ServerPlayer extends Player {
      * @param uuid player uuid
      * @param name player name
      */
-    public ServerPlayer(double x, double y, double orientation, double velocityX, double velocityY, UUID uuid, String name){
+    public ServerPlayer(double x, double y, double orientation, double velocityX, double velocityY, UUID uuid, String name, ServerLevel level){
         super(x, y, orientation, velocityX, velocityY, uuid, name);
+        this.level = level;
         this.attributeModifiers.add(new AttributeModifier(MAX_SPEED_SQUARED.get(), UUID.randomUUID(), "player:base_max_speed_squared", ADD_BASE, BASE_MAX_SPEED_SQUARED));
         this.attributeModifiers.add(new AttributeModifier(FORWARD_ACCELERATION.get(), UUID.randomUUID(), "player:base_forward_acceleration", ADD_BASE, BASE_FORWARD_ACCELERATION));
         this.attributeModifiers.add(new AttributeModifier(REVERSE_ACCELERATION.get(), UUID.randomUUID(), "player:base_reverse_acceleration", ADD_BASE, BASE_REVERSE_ACCELERATION));
@@ -66,8 +71,9 @@ public class ServerPlayer extends Player {
      * @param uuid player uuid
      * @param name player name
      */
-    public ServerPlayer(UUID uuid, String name){
+    public ServerPlayer(UUID uuid, String name, ServerLevel level){
         super(uuid, name);
+        this.level = level;
         this.attributeModifiers.add(new AttributeModifier(MAX_SPEED_SQUARED.get(), UUID.randomUUID(), "player:base_max_speed_squared", ADD_BASE, BASE_MAX_SPEED_SQUARED));
         this.attributeModifiers.add(new AttributeModifier(FORWARD_ACCELERATION.get(), UUID.randomUUID(), "player:base_forward_acceleration", ADD_BASE, BASE_FORWARD_ACCELERATION));
         this.attributeModifiers.add(new AttributeModifier(REVERSE_ACCELERATION.get(), UUID.randomUUID(), "player:base_reverse_acceleration", ADD_BASE, BASE_REVERSE_ACCELERATION));
@@ -189,6 +195,9 @@ public class ServerPlayer extends Player {
         y = Math.max(-1e6, Math.min(y, 1e6));
 
         updateOrientation(payload.targetAngle);
+
+        PlayerUpdatePayload updatePayload = new PlayerUpdatePayload(this.uuid, this.x, this.y, this.orientation, this.velocityX, this.velocityY, this.accelerationX, this.accelerationY);
+        this.level.getPlayer(this.uuid).level.getGame().getClientBus().post(updatePayload);
     }
 
     /**

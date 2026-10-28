@@ -42,6 +42,10 @@ public class ServerLevel extends Level {
         this.game.getServerBus().register(serverPlayer);
     }
 
+    public ServerPlayer getPlayer(UUID uuid){
+        return this.players.get(uuid);
+    }
+
     /**
      * Updates all players (called once per tick).
      * This method is now a no-op since Player.update() handles the logic directly.

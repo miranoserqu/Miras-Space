@@ -28,7 +28,6 @@ public class ClientLevel extends Level {
     private JFrame frame;
     private GamePanel gamePanel;
     private ClientPlayer localPlayer;
-    private Game game;
 
     private boolean[] keyStates = new boolean[256];
     private GamepadInput gamepad = new GamepadInput();
@@ -50,10 +49,14 @@ public class ClientLevel extends Level {
     private double cameraShakeY = 0;
     private double accelMagnitude = 0;
 
-    public ClientLevel(ClientPlayer player, Game game) {
+    public ClientLevel(Game game) {
         super(Option.WEIGHT_RESOLUTION.getValue(), Option.HEIGHT_RESOLUTION.getValue(), game);
-        this.localPlayer = player;
         initializeUI();
+    }
+
+    public void setLocalPlayer(ClientPlayer localPlayer){
+        this.localPlayer = localPlayer;
+        this.game.getClientBus().register(localPlayer);
     }
 
     private void initializeUI() {
@@ -214,8 +217,8 @@ public class ClientLevel extends Level {
             cameraShakeX = Math.sin(shakePhase) * camShakeMag;
             cameraShakeY = Math.cos(shakePhase * 0.7) * camShakeMag;
 
-            worldOffsetX += vx;
-            worldOffsetY += vy;
+            worldOffsetX = vx;
+            worldOffsetY = vy;
 
             gamePanel.repaint();
             return;

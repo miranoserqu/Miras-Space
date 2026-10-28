@@ -1,5 +1,7 @@
 package com.miranoserqu.miras_space.game;
 
+import com.miranoserqu.miras_space.Game;
+
 import java.util.UUID;
 
 public class Player {

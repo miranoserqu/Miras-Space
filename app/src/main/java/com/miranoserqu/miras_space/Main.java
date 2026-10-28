@@ -17,11 +17,12 @@ public class Main {
     public static void main(String[] args) {
         // Start the game client which handles everything
         Game game = new Game();
-        ClientPlayer clientPlayer = new ClientPlayer(UUID.randomUUID(), "miranoserqu");
-        ServerPlayer serverPlayer = new ServerPlayer(clientPlayer.getUuid(), clientPlayer.getName());
-        ClientLevel client = new ClientLevel(clientPlayer, game);
+        ClientLevel client = new ClientLevel(game);
         ServerLevel server = new ServerLevel(game);
+        ClientPlayer clientPlayer = new ClientPlayer(UUID.randomUUID(), "miranoserqu", client);
+        ServerPlayer serverPlayer = new ServerPlayer(clientPlayer.getUuid(), clientPlayer.getName(), server);
         server.addPlayer(serverPlayer);
+        client.setLocalPlayer(clientPlayer);
         server.start();
         client.start();
     }
