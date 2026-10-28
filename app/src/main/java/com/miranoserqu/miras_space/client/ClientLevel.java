@@ -1,9 +1,14 @@
 package com.miranoserqu.miras_space.client;
 
+import com.miranoserqu.miras_space.Game;
+import com.miranoserqu.miras_space.Option;
+import com.miranoserqu.miras_space.game.Level;
 import com.miranoserqu.miras_space.game.Player;
+import com.miranoserqu.miras_space.network.InputPayload;
+import com.miranoserqu.miras_space.server.ServerPlayer;
 import com.miranoserqu.miras_space.network.Payload;
 import com.miranoserqu.miras_space.resource.Resource;
-import com.miranoserqu.miras_space.server.GameServer;
+import com.miranoserqu.miras_space.server.ServerLevel;
 
 import javax.swing.*;
 import java.awt.*;
@@ -11,8 +16,9 @@ import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
-public class GameClient {
+public class ClientLevel extends Level {
     private static final int WINDOW_WIDTH = 800;
     private static final int WINDOW_HEIGHT = 600;
     private static final int TICKS_PER_SECOND = 60;
@@ -21,8 +27,8 @@ public class GameClient {
 
     private JFrame frame;
     private GamePanel gamePanel;
-    private Player localPlayer;
-    private GameServer server;
+    private ClientPlayer localPlayer;
+    private Game game;
 
     private boolean[] keyStates = new boolean[256];
     private GamepadInput gamepad = new GamepadInput();
@@ -36,9 +42,6 @@ public class GameClient {
     private double worldOffsetX = 0;
     private double worldOffsetY = 0;
 
-    private long lastTick;
-    private int playerId;
-    private double tickAccumulator = 0;
     private boolean debugOverlay = false;
     private double lastAccelX = 0;
     private double lastAccelY = 0;
@@ -47,13 +50,10 @@ public class GameClient {
     private double cameraShakeY = 0;
     private double accelMagnitude = 0;
 
-    public GameClient() {
-        this.localPlayer = new Player(WINDOW_WIDTH / 2.0, WINDOW_HEIGHT / 2.0, WINDOW_WIDTH, WINDOW_HEIGHT);
-        this.server = new GameServer();
-        server.addPlayer(localPlayer);
-        this.playerId = 0;
+    public ClientLevel(ClientPlayer player, Game game) {
+        super(Option.WEIGHT_RESOLUTION.getValue(), Option.HEIGHT_RESOLUTION.getValue(), game);
+        this.localPlayer = player;
         initializeUI();
-        lastTick = System.currentTimeMillis();
     }
 
     private void initializeUI() {
@@ -67,6 +67,15 @@ public class GameClient {
         gamePanel.requestFocusInWindow();
         setupKeyboardInput();
         setupMouseTracking();
+    }
+
+    public void start(){
+        Thread mainThread = new Thread(() -> {
+            while(true){
+                update();
+            }
+        });
+        mainThread.start();
     }
 
     private void setupKeyboardInput() {
@@ -163,7 +172,7 @@ public class GameClient {
         return pressedKeys;
     }
 
-    public void tick() {
+    public void update() {
         List<Integer> pressedKeys = new ArrayList<>();
 
         if (useGamepad) {
@@ -192,23 +201,9 @@ public class GameClient {
             double dy = mouseY - shipCenterY;
             double targetAngle = Math.atan2(dy, dx);
 
-            Payload inputPayload = Payload.createPlayerInput(playerId, pressedKeys, targetAngle, false, mouseX, mouseY, invertControls);
-            server.processPlayerInput(inputPayload);
+            Payload inputPayload = new InputPayload(mouseX, mouseY, pressedKeys, targetAngle, localPlayer.getUuid(), invertControls);
+            this.game.getServerBus().post(inputPayload);
 
-            java.util.List<Payload> updates = server.getPlayerUpdates();
-            for (Payload update : updates) {
-                if (update.getPlayerId() == playerId) {
-                    localPlayer.setX(update.getX());
-                    localPlayer.setY(update.getY());
-                    localPlayer.setOrientation(update.getOrientation());
-                    localPlayer.setVelocityX(update.getVelocityX());
-                    localPlayer.setVelocityY(update.getVelocityY());
-                    lastAccelX = update.getAccelerationX();
-                    lastAccelY = update.getAccelerationY();
-                    accelMagnitude = Math.hypot(lastAccelX, lastAccelY);
-                    break;
-                }
-            }
             // Actualiza posición / cámara igual que en modo normal
             double vx = localPlayer.getVelocityX();
             double vy = localPlayer.getVelocityY();
@@ -236,24 +231,8 @@ public class GameClient {
         double dy = mouseY - shipCenterY;
         double targetAngle = Math.atan2(dy, dx);
 
-        Payload inputPayload = Payload.createPlayerInput(playerId, pressedKeys, targetAngle, aimTargetSet, aimTargetX, aimTargetY, invertControls);
-        server.processPlayerInput(inputPayload);
-
-        java.util.List<Payload> updates = server.getPlayerUpdates();
-        for (Payload update : updates) {
-            if (update.getPlayerId() == playerId) {
-                // Server returns the authoritative state
-                localPlayer.setX(update.getX());
-                localPlayer.setY(update.getY());
-                localPlayer.setOrientation(update.getOrientation());
-                localPlayer.setVelocityX(update.getVelocityX());
-                localPlayer.setVelocityY(update.getVelocityY());
-                lastAccelX = update.getAccelerationX();
-                lastAccelY = update.getAccelerationY();
-                accelMagnitude = Math.hypot(lastAccelX, lastAccelY);
-                break;
-            }
-        }
+        InputPayload inputPayload = new InputPayload(aimTargetX, aimTargetY, pressedKeys, targetAngle, this.localPlayer.getUuid(), invertControls);
+        this.game.getServerBus().post(inputPayload);
 
         double vx = localPlayer.getVelocityX();
         double vy = localPlayer.getVelocityY();
@@ -268,27 +247,6 @@ public class GameClient {
         worldOffsetY += vy;
 
         gamePanel.repaint();
-    }
-
-    public void start() {
-        Thread t = new Thread(() -> {
-            lastTick = System.currentTimeMillis();
-            long tickIntervalMs = 1000 / TICKS_PER_SECOND; // ~16.67 ms for 60 TPS
-            while (true) {
-                long now = System.currentTimeMillis();
-                long elapsed = now - lastTick;
-                tickAccumulator += elapsed;
-                lastTick = now;
-
-                while (tickAccumulator >= tickIntervalMs) {
-                    tick();
-                    tickAccumulator -= tickIntervalMs;
-                    tickRate = 1000.0 / tickIntervalMs; // ~60
-                }
-                try { Thread.sleep(1); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
-            }
-        });
-        t.start();
     }
 
     private class GamePanel extends JPanel {
@@ -459,10 +417,4 @@ public class GameClient {
         }
     }
 
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> {
-            GameClient client = new GameClient();
-            client.start();
-        });
-    }
 }

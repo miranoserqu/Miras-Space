@@ -1,59 +1,45 @@
 package com.miranoserqu.miras_space.server;
 
+import com.miranoserqu.miras_space.Game;
+import com.miranoserqu.miras_space.Option;
+import com.miranoserqu.miras_space.game.Level;
 import com.miranoserqu.miras_space.game.Player;
-import com.miranoserqu.miras_space.network.Payload;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 /**
  * Server-side game logic handler.
  * Processes player input and updates game state.
  */
-public class GameServer {
+public class ServerLevel extends Level {
+
     private static final int TICKS_PER_SECOND = 60;
     private static final int TICK_INTERVAL_MS = 1000 / TICKS_PER_SECOND;
 
-    private List<Player> players;
+    private long lastTick;
+    private double tickAccumulator = 0;
+
+    private Map<UUID, ServerPlayer> players;
     private boolean running;
     private Thread gameThread;
 
     /**
      * Creates a new game server.
      */
-    public GameServer() {
-        this.players = new ArrayList<>();
+    public ServerLevel(Game game) {
+        super(Option.WEIGHT_RESOLUTION.getValue(), Option.HEIGHT_RESOLUTION.getValue(), game);
+        this.players = new HashMap<>();
         this.running = false;
     }
 
     /**
      * Adds a player to the game.
      *
-     * @param player the player to add
+     * @param serverPlayer the player to add
      */
-    public void addPlayer(Player player) {
-        players.add(player);
-    }
-
-    /**
-     * Processes a player input payload and updates the corresponding player.
-     *
-     * @param payload the input payload from client
-     */
-    public void processPlayerInput(Payload payload) {
-        if (payload.getType() == Payload.PLAYER_INPUT) {
-            int playerId = payload.getPlayerId();
-            List<Integer> pressedKeys = payload.getPressedKeys();
-            double aimAngle = payload.getAimAngle();
-
-            if (playerId >= 0 && playerId < players.size()) {
-                Player player = players.get(playerId);
-                // Orientation is authoritative on the server: it turns towards the aim
-                // angle at the rotation speed, then the thrusters use that orientation.
-                player.updateOrientation(aimAngle);
-                player.update(pressedKeys, payload.isAimTargetSet(), payload.getAimTargetX(), payload.getAimTargetY(), payload.isInvertControls());
-            }
-        }
+    public void addPlayer(ServerPlayer serverPlayer) {
+        players.put(serverPlayer.getUuid(), serverPlayer);
+        this.game.getServerBus().register(serverPlayer);
     }
 
     /**
@@ -63,21 +49,6 @@ public class GameServer {
      */
     public void update() {
         // Update logic is handled in processPlayerInput now
-    }
-
-    /**
-     * Gets player update payloads for all players.
-     *
-     * @return list of player update payloads
-     */
-    public List<Payload> getPlayerUpdates() {
-        List<Payload> updates = new ArrayList<>();
-        for (int i = 0; i < players.size(); i++) {
-            Player player = players.get(i);
-            Payload payload = Payload.createPlayerUpdate(i, player.getX(), player.getY(), player.getOrientation(), player.getVelocityX(), player.getVelocityY(), player.getAccelerationX(), player.getAccelerationY());
-            updates.add(payload);
-        }
-        return updates;
     }
 
     /**
