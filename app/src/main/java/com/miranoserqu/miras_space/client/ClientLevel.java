@@ -2,18 +2,27 @@ package com.miranoserqu.miras_space.client;
 
 import com.miranoserqu.miras_space.Game;
 import com.miranoserqu.miras_space.Option;
+import com.miranoserqu.miras_space.event.SubscribeEvent;
 import com.miranoserqu.miras_space.game.Level;
+import com.miranoserqu.miras_space.network.GamepadInputPayload;
 import com.miranoserqu.miras_space.network.InputPayload;
+import com.miranoserqu.miras_space.network.InputRequestPayload;
 import com.miranoserqu.miras_space.network.Payload;
 import com.miranoserqu.miras_space.registries.Attributes;
 import com.miranoserqu.miras_space.resource.Resource;
+import de.gurkenlabs.input4j.*;
+import de.gurkenlabs.input4j.components.XInput;
+import de.gurkenlabs.input4j.foreign.windows.xinput.XInputButton;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
+import java.awt.im.InputContext;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 
 public class ClientLevel extends Level {
     private static final int WINDOW_WIDTH = 800;
@@ -27,9 +36,11 @@ public class ClientLevel extends Level {
     private ClientPlayer localPlayer;
 
     private boolean[] keyStates = new boolean[256];
-    private GamepadInput gamepad = new GamepadInput();
+    private Collection<InputDevice> controllers;
     private double mouseX = 0;
     private double mouseY = 0;
+    private float controllerX = 0;
+    private float controllerY = 0;
     private boolean aimTargetSet = false;
     private boolean useGamepad = false;
     private boolean invertControls = false;
@@ -51,12 +62,14 @@ public class ClientLevel extends Level {
 
     public ClientLevel(Game game) {
         super(Option.WEIGHT_RESOLUTION.getValue(), Option.HEIGHT_RESOLUTION.getValue(), game);
+        this.controllers = InputDevices.init().getAll();
         initializeUI();
     }
 
     public void setLocalPlayer(ClientPlayer localPlayer){
         this.localPlayer = localPlayer;
         this.game.getClientBus().register(localPlayer);
+        localPlayer.setLevel(this);
     }
 
     private void initializeUI() {
@@ -176,66 +189,6 @@ public class ClientLevel extends Level {
     }
 
     public void update() {
-        List<Integer> pressedKeys = new ArrayList<>();
-
-        if (useGamepad) {
-            // MODO MANDO FÍSICO: lee axes del mando real, bloquea teclado/ratón
-            gamepad.poll();
-            double axisX = gamepad.getAxisX(); // joystick izquierdo: -1..1
-            double axisY = gamepad.getAxisY(); // joystick derecho / LT: -1..1
-
-            double shipCenterX = gamePanel.getWidth() / 2.0;
-            double shipCenterY = gamePanel.getHeight() / 2.0;
-
-            // Joystick izquierdo (lateral / Q-E)
-            if (axisX < -0.3) pressedKeys.add(KeyEvent.VK_Q);
-            if (axisX > 0.3) pressedKeys.add(KeyEvent.VK_E);
-
-            // LT / Aceleración adelante (W)
-            // Usamos axisY del joystick izquierdo o botón A como LT
-            if (axisY < -0.3 || gamepad.isButtonA()) pressedKeys.add(KeyEvent.VK_W);
-
-            // Joystick derecho = cursor de apunte (simula posición de ratón)
-            mouseX = shipCenterX + axisX * 100.0; // si el mando tiene 2 joysticks
-            mouseY = shipCenterY + (gamepad.isButtonB() ? -100 : 0); // simplificado
-
-            // Si hay mando físico conectado, usar sus axes para apunte
-            double dx = mouseX - shipCenterX;
-            double dy = mouseY - shipCenterY;
-            double targetAngle = Math.atan2(dy, dx);
-
-            Payload inputPayload = new InputPayload(mouseX, mouseY, pressedKeys, targetAngle, localPlayer.getUuid(), invertControls);
-            this.game.getServerBus().post(inputPayload);
-
-            // Actualiza posición / cámara igual que en modo normal
-            double vx = localPlayer.getVelocityX();
-            double vy = localPlayer.getVelocityY();
-
-            double camShakeMag = Math.min(accelMagnitude * 0.6, 8.0);
-            double shakeFreq = Math.max(0.3, accelMagnitude * 0.15);
-            double shakePhase = (System.currentTimeMillis() / 16.0) % (2 * Math.PI);
-            cameraShakeX = Math.sin(shakePhase) * camShakeMag;
-            cameraShakeY = Math.cos(shakePhase * 0.7) * camShakeMag;
-
-            worldOffsetX = vx;
-            worldOffsetY = vy;
-
-            gamePanel.repaint();
-            return;
-        }
-
-        // MODO MOUSE + TECLADO (normal)
-        pressedKeys = getKeyboardInput();
-
-        // Client sends aimAngle to server; server is authoritative for orientation.
-        double shipCenterX = gamePanel.getWidth() / 2.0;
-        double shipCenterY = gamePanel.getHeight() / 2.0;
-        double dx = mouseX - shipCenterX;
-        double dy = mouseY - shipCenterY;
-        double targetAngle = Math.atan2(dy, dx);
-
-        InputPayload inputPayload = new InputPayload(aimTargetX, aimTargetY, pressedKeys, targetAngle, this.localPlayer.getUuid(), invertControls);
-        this.game.getServerBus().post(inputPayload);
 
         double vx = localPlayer.getVelocityX();
         double vy = localPlayer.getVelocityY();
@@ -254,6 +207,80 @@ public class ClientLevel extends Level {
         gamePanel.repaint();
 
         this.lastTime = now;
+    }
+
+    @SubscribeEvent
+    public void onInputRequest(InputRequestPayload inputRequestPayload){
+        List<Integer> pressedKeys = new ArrayList<>();
+
+        if (useGamepad) {
+            // MODO MANDO FÍSICO: lee axes del mando real, bloquea teclado/ratón
+            InputDevice controller = null;
+            for(InputDevice c : this.controllers){
+                if(c.getControllerType().equals(ControllerType.XBOX) || c.getControllerType().equals(ControllerType.GENERIC)) controller = c;
+            }
+
+            if(controller == null) return;
+
+            controller.poll();
+
+            GamepadInputPayload payload = getGamepadInputPayload(controller);
+            this.game.getServerBus().post(payload);
+
+            return;
+        }
+
+        // MODO MOUSE + TECLADO (normal)
+        pressedKeys = getKeyboardInput();
+
+        // Client sends aimAngle to server; server is authoritative for orientation.
+        double shipCenterX = gamePanel.getWidth() / 2.0;
+        double shipCenterY = gamePanel.getHeight() / 2.0;
+        double dx = mouseX - shipCenterX;
+        double dy = mouseY - shipCenterY;
+        double targetAngle = Math.atan2(dy, dx);
+
+        InputPayload inputPayload = new InputPayload(aimTargetX, aimTargetY, pressedKeys, targetAngle, this.localPlayer.getUuid(), invertControls);
+        this.game.getServerBus().post(inputPayload);
+    }
+
+    private static GamepadInputPayload getGamepadInputPayload(InputDevice controller) {
+        float xAxis = 0;
+        float yAxis = 0;
+        boolean a = false;
+        boolean b = false;
+        boolean x = false;
+        boolean y = false;
+        boolean lt = false;
+        boolean lb = false;
+        boolean rt = false;
+        boolean rb = false;
+        boolean start = false;
+        boolean right = false;
+        boolean left = false;
+        boolean up = false;
+        boolean down = false;
+
+        for(InputComponent component : controller.getComponents()){
+            if(component.getId().equals(XInput.LEFT_THUMB_X)) xAxis = component.getData();
+            else if(component.getId().equals(XInput.LEFT_THUMB_Y)) yAxis = -component.getData();
+            else if(component.getId().equals(XInput.A)) a = component.getData() != 0;
+            else if(component.getId().equals(XInput.B)) b = component.getData() != 0;
+            else if(component.getId().equals(XInput.X)) x = component.getData() != 0;
+            else if(component.getId().equals(XInput.Y)) y = component.getData() != 0;
+            else if(component.getId().equals(XInput.LEFT_THUMB)) lt = component.getData() != 0;
+            else if(component.getId().equals(XInput.LEFT_SHOULDER)) lb = component.getData() != 0;
+            else if(component.getId().equals(XInput.RIGHT_THUMB)) rt = component.getData() != 0;
+            else if(component.getId().equals(XInput.RIGHT_SHOULDER)) rb = component.getData() != 0;
+            else if(component.getId().equals(XInput.START)) start = component.getData() != 0;
+            else if(component.getId().equals(XInput.DPAD_RIGHT)) right = component.getData() != 0;
+            else if(component.getId().equals(XInput.DPAD_LEFT)) left = component.getData() != 0;
+            else if(component.getId().equals(XInput.DPAD_UP)) up = component.getData() != 0;
+            else if(component.getId().equals(XInput.DPAD_DOWN)) down = component.getData() != 0;
+        }
+
+        GamepadInputPayload payload = new GamepadInputPayload(xAxis, yAxis, a, b, x, y, lt, lb, rt, rb, start, right, left, up, down);
+        return payload;
     }
 
     private class GamePanel extends JPanel {
@@ -292,6 +319,12 @@ public class ClientLevel extends Level {
             g.fillRect(0, 0, getWidth(), getHeight());
             Graphics2D g2d = (Graphics2D) g.create();
 
+            // Return early if localPlayer is not yet initialized
+            if (ClientLevel.this.localPlayer == null) {
+                g2d.dispose();
+                return;
+            }
+
             // Draw tiled background
             if (spaceTexture != null) {
                 int tileW = spaceTexture.getWidth();
@@ -324,17 +357,17 @@ public class ClientLevel extends Level {
 
             // Debug overlay: velocity (blue arrow) and acceleration (red arrow),
             // drawn in screen space so they are not rotated with the ship.
-            if (debugOverlay) {
+            if (debugOverlay && ClientLevel.this.localPlayer != null) {
                 g2d.setColor(new Color(0, 150, 255, 220)); // blue velocity
-                drawArrow(g2d, centerX, centerY, localPlayer.getVelocityX() * 8, localPlayer.getVelocityY() * 8);
+                drawArrow(g2d, centerX, centerY, ClientLevel.this.localPlayer.getVelocityX() * 8, ClientLevel.this.localPlayer.getVelocityY() * 8);
                 g2d.setColor(new Color(255, 50, 50, 220)); // red acceleration
-                drawArrow(g2d, centerX, centerY, localPlayer.getAccelerationX() * 60, localPlayer.getAccelerationY() * 60);
+                drawArrow(g2d, centerX, centerY, ClientLevel.this.localPlayer.getAccelerationX() * 60, ClientLevel.this.localPlayer.getAccelerationY() * 60);
 
                 drawDebugText(g2d);
             }
 
         // Aim marker
-        if (aimTargetSet) {
+        if (aimTargetSet && ClientLevel.this.localPlayer != null) {
             int cx = (int)(getWidth() / 2.0);
             int cy = (int)(getHeight() / 2.0);
             int mx = (int)(aimTargetX);
@@ -354,6 +387,8 @@ public class ClientLevel extends Level {
             g2d.translate(centerX + speedCamX, centerY + speedCamY);
             g2d.rotate((float) localPlayer.getOrientation() + (localPlayer.getOrientation() - lastOrientation) * (now - lastTime) / 1000000);
             lastOrientation = localPlayer.getOrientation();
+            // Ensure lastTime doesn't get reset to prevent potential overflow
+            if (lastTime == 0) lastTime = System.nanoTime();
             g2d.setColor(new Color(0, 255, 0, 200));
             int[] xPts = {-25, 25, 0};
             int[] yPts = {0, 0, -25};

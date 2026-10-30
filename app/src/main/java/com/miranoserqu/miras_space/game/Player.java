@@ -1,69 +1,35 @@
 package com.miranoserqu.miras_space.game;
 
 import com.miranoserqu.miras_space.Game;
+import com.miranoserqu.miras_space.entity.Entity;
 
 import java.util.UUID;
 
-public class Player {
+public class Player extends Entity {
 
-    protected double x;
-    protected double y;
-    protected double orientation;
-    protected double velocityX;
-    protected double velocityY;
-    protected double accelerationX;
-    protected double accelerationY;
-    protected final UUID uuid;
     protected final String name;
+    protected Level level;
 
     public Player(double x, double y, double orientation, double velocityX, double velocityY, UUID uuid, String name){
-        this.uuid = uuid;
+        super(x, y, orientation, velocityX, velocityY, uuid);
         this.name = name;
-        this.orientation = orientation;
-        this.x = x; this.y = y; this.velocityX = velocityX; this.velocityY = velocityY;
     }
 
     public Player(UUID uuid, String name){
-        this.uuid = uuid;
+        super(uuid);
         this.name = name;
-        this.orientation = 0;
-        this.x = 0; this.y = 0; this.velocityX = 0; this.velocityY = 0;
-    }
-
-    public double getX() {
-        return x;
-    }
-
-    public double getY() {
-        return y;
-    }
-
-    public double getOrientation(){
-        return orientation;
-    }
-
-    public double getVelocityX() {
-        return velocityX;
-    }
-
-    public double getVelocityY() {
-        return velocityY;
-    }
-
-    public UUID getUuid() {
-        return uuid;
     }
 
     public String getName() {
         return name;
     }
 
-    public double getAccelerationX(){
-        return this.accelerationX;
+    public void setLevel(Level level){
+        this.level = level;
     }
 
-    public double getAccelerationY(){
-        return this.accelerationY;
+    public Level getLevel(){
+        return this.level;
     }
 
 }

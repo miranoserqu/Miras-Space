@@ -2,6 +2,7 @@ package com.miranoserqu.miras_space.server;
 
 import com.miranoserqu.miras_space.Game;
 import com.miranoserqu.miras_space.Option;
+import com.miranoserqu.miras_space.entity.Entity;
 import com.miranoserqu.miras_space.game.Level;
 import com.miranoserqu.miras_space.game.Player;
 
@@ -20,6 +21,7 @@ public class ServerLevel extends Level {
     private double tickAccumulator = 0;
 
     private Map<UUID, ServerPlayer> players;
+    private Map<UUID, Entity> entities;
     private boolean running;
     private Thread gameThread;
 
@@ -29,6 +31,7 @@ public class ServerLevel extends Level {
     public ServerLevel(Game game) {
         super(Option.WEIGHT_RESOLUTION.getValue(), Option.HEIGHT_RESOLUTION.getValue(), game);
         this.players = new HashMap<>();
+        this.entities = new HashMap<>();
         this.running = false;
     }
 
@@ -40,6 +43,7 @@ public class ServerLevel extends Level {
     public void addPlayer(ServerPlayer serverPlayer) {
         players.put(serverPlayer.getUuid(), serverPlayer);
         this.game.getServerBus().register(serverPlayer);
+        serverPlayer.setLevel(this);
     }
 
     public ServerPlayer getPlayer(UUID uuid){

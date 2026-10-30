@@ -2,7 +2,9 @@ package com.miranoserqu.miras_space.server;
 
 import com.miranoserqu.miras_space.event.SubscribeEvent;
 import com.miranoserqu.miras_space.game.Player;
+import com.miranoserqu.miras_space.network.GamepadInputPayload;
 import com.miranoserqu.miras_space.network.InputPayload;
+import com.miranoserqu.miras_space.network.InputRequestPayload;
 import com.miranoserqu.miras_space.network.PlayerUpdatePayload;
 import com.miranoserqu.miras_space.tag.AttributeModifier;
 
@@ -31,8 +33,6 @@ public class ServerPlayer extends Player {
     private boolean processedInputs = false;
 
     // Acceleration applied on the last tick (pixels per tick^2)
-    private double accelerationX;
-    private double accelerationY;
 
     // Size of the spaceship
     private static final int WIDTH = 50;
@@ -87,12 +87,6 @@ public class ServerPlayer extends Player {
     @SubscribeEvent
     public void onPlayerInput(InputPayload payload) {
 
-        if(processedInputs){
-            return;
-        }
-
-        this.processedInputs = true;
-
         List<Integer> inputs = payload.inputs;
 
         // Translate the held keys into thrust axes
@@ -102,23 +96,36 @@ public class ServerPlayer extends Player {
         this.turbo = false;
 
         for(int key : inputs){
-            if(key == KeyEvent.VK_CONTROL && this.velocityX != 0 && this.velocityY != 0){
+            if(key == KeyEvent.VK_CONTROL){
+                if(this.velocityX == 0 && this.velocityY == 0){
+                    updateOrientation(payload.targetAngle);
+
+                    PlayerUpdatePayload updatePayload = new PlayerUpdatePayload(this.uuid, this.x, this.y, this.orientation, this.velocityX, this.velocityY, this.accelerationX, this.accelerationY);
+                    this.level.getPlayer(this.uuid).level.getGame().getClientBus().post(updatePayload);
+
+                    return;
+                }
                 double velocity = Math.hypot(velocityX, velocityY);
                 double movementX = this.velocityX / velocity;
                 double movementY = this.velocityY / velocity;
 
                 double deaccel = FORWARD_ACCELERATION.get().getValue(this.attributeModifiers);
 
+                // Apply deceleration to slow down the ship
                 if(velocity <= deaccel){
                     this.velocityX = 0;
                     this.velocityY = 0;
+                    this.accelerationX = 0;
+                    this.accelerationY = 0;
+                } else {
+                    this.accelerationX = -movementX * deaccel;
+                    this.accelerationY = -movementY * deaccel;
+
+                    // Apply deceleration to velocity, ensuring it doesn't become negative
+                    this.velocityX -= movementX * deaccel;
+                    this.velocityY -= movementY * deaccel;
+
                 }
-
-                this.accelerationX = -movementX * deaccel;
-                this.accelerationY = -movementY * deaccel;
-
-                this.velocityX -= movementX * deaccel;
-                this.velocityY -= movementY * deaccel;
 
                 this.x += this.velocityX;
                 this.y += this.velocityY;
@@ -212,8 +219,117 @@ public class ServerPlayer extends Player {
         this.level.getPlayer(this.uuid).level.getGame().getClientBus().post(updatePayload);
     }
 
+    @SubscribeEvent
+    public void onPlayerGamepadInput(GamepadInputPayload payload) {
+
+        this.turbo = false;
+
+        if(Math.abs(payload.xAxis) < 0.1 && Math.abs(payload.yAxis) < 0.1){
+            if(this.velocityX == 0 && this.velocityY == 0){
+                updateOrientation(0);
+
+                PlayerUpdatePayload updatePayload = new PlayerUpdatePayload(this.uuid, this.x, this.y, this.orientation, this.velocityX, this.velocityY, this.accelerationX, this.accelerationY);
+                this.level.getPlayer(this.uuid).level.getGame().getClientBus().post(updatePayload);
+
+                return;
+            }
+            double velocity = Math.hypot(velocityX, velocityY);
+            double movementX = this.velocityX / velocity;
+            double movementY = this.velocityY / velocity;
+
+            double deaccel = FORWARD_ACCELERATION.get().getValue(this.attributeModifiers);
+
+            // Apply deceleration to slow down the ship
+            if(velocity <= deaccel){
+                this.velocityX = 0;
+                this.velocityY = 0;
+                this.accelerationX = 0;
+                this.accelerationY = 0;
+            } else {
+                this.accelerationX = -movementX * deaccel;
+                this.accelerationY = -movementY * deaccel;
+
+                // Apply deceleration to velocity, ensuring it doesn't become negative
+                this.velocityX -= movementX * deaccel;
+                this.velocityY -= movementY * deaccel;
+
+            }
+
+            this.x += this.velocityX;
+            this.y += this.velocityY;
+
+            updateOrientation(Math.atan2(-movementY, -movementX));
+
+            PlayerUpdatePayload updatePayload = new PlayerUpdatePayload(this.uuid, this.x, this.y, this.orientation, this.velocityX, this.velocityY, this.accelerationX, this.accelerationY);
+            this.level.getPlayer(this.uuid).level.getGame().getClientBus().post(updatePayload);
+
+            return;
+        }
+
+        if(payload.lt) {
+            this.turbo = true;
+        }
+
+        // Speed at the start of the tick, before this tick's thrust is applied.
+        // Used as the "frozen" limit while the ship is above the max speed.
+        double speedBeforeThrust = Math.hypot(this.velocityX, this.velocityY);
+
+        double accelAngle = Math.atan2(payload.yAxis, payload.xAxis);
+
+        // Calculate acceleration based on current orientation and input
+        double accelX = FORWARD_ACCELERATION.get().getValue(this.attributeModifiers) * (turbo ? 2 : 1) * payload.xAxis;
+        double accelY = FORWARD_ACCELERATION.get().getValue(this.attributeModifiers) * (turbo ? 2 : 1) * payload.yAxis;
+
+        // Apply acceleration to velocity with gradual build-up (in-space physics)
+        this.accelerationX = accelX;
+        this.accelerationY = accelY;
+        this.velocityX = this.velocityX + this.accelerationX;
+        this.velocityY = this.velocityY + this.accelerationY;
+
+        // Speed management
+        double maxSpeed = MAX_SPEED.get().getValue(this.attributeModifiers) * (turbo ? 2 : 1);
+        double speed = Math.hypot(velocityX, velocityY);
+        double threshold = maxSpeed * 1.15;
+
+        if (speed > maxSpeed && maxSpeed > 0) {
+            double velOrientation = Math.atan2(velocityY, velocityX);
+
+            if (speed > threshold) {
+                // Way above max: freeze speed at its current value (do not reduce)
+                // It must NOT grow further either: cap at speedBeforeThrust
+                double frozenLimit = Math.min(speedBeforeThrust, speed);
+                // Prevent acceleration from pushing it over frozenLimit this tick
+                // By projecting velocity to frozenLimit along direction if it grew
+                if (speed > frozenLimit) {
+                    this.velocityX = Math.cos(velOrientation) * frozenLimit;
+                    this.velocityY = Math.sin(velOrientation) * frozenLimit;
+                }
+                // If it stayed under frozenLimit naturally, leave it unchanged
+            } else {
+                // Between max and 15% over: standard clamp
+                this.velocityX = Math.cos(velOrientation) * maxSpeed;
+                this.velocityY = Math.sin(velOrientation) * maxSpeed;
+            }
+        }
+
+        // Update position
+        x += velocityX;
+        y += velocityY;
+
+        // Keep within bounds (world bounds, not screen bounds - world is infinite)
+        // Bounds are effectively disabled for infinite space; kept for safety
+        x = Math.max(-1e6, Math.min(x, 1e6));
+        y = Math.max(-1e6, Math.min(y, 1e6));
+
+        updateOrientation(accelAngle);
+
+        PlayerUpdatePayload updatePayload = new PlayerUpdatePayload(this.uuid, this.x, this.y, this.orientation, this.velocityX, this.velocityY, this.accelerationX, this.accelerationY);
+        this.level.getPlayer(this.uuid).level.getGame().getClientBus().post(updatePayload);
+    }
+
     public void tick(){
-        this.processedInputs = false;
+        InputRequestPayload payload = new InputRequestPayload();
+        this.level.getPlayer(this.uuid).level.getGame().getClientBus().post(payload);
     }
 
     /**

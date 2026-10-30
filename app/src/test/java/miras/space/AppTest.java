@@ -1,6 +1,8 @@
 package miras.space;
 
 import com.miranoserqu.miras_space.resource.Resource;
+import de.gurkenlabs.input4j.InputDevice;
+import de.gurkenlabs.input4j.InputDevices;
 import org.junit.jupiter.api.Test;
 
 import javax.imageio.ImageIO;
@@ -26,6 +28,8 @@ class AppTest {
         // This should not throw an exception
         assertDoesNotThrow(() -> resource.clearCache());
     }
+
+
 
     // Note: Testing actual resource loading would require having test resources
     // For now, we just verify the class structure and singleton pattern
