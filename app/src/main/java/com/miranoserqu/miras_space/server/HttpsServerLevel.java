@@ -1,8 +1,6 @@
 package com.miranoserqu.miras_space.server;
 
 import com.miranoserqu.miras_space.Game;
-import com.miranoserqu.miras_space.Option;
-import com.miranoserqu.miras_space.entity.Entity;
 import com.miranoserqu.miras_space.game.Level;
 import com.miranoserqu.miras_space.network.GamepadInputPayload;
 import com.miranoserqu.miras_space.network.InputPayload;
@@ -13,31 +11,21 @@ import com.sun.net.httpserver.HttpsServer;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.UUID;
 
 /**
  * HTTPS server-side game level handler.
- * Listens for payloads from a remote server/client via HTTPS and processes them.
+ * Acts as a bridge between the remote server and the client, listening for payloads
+ * and dispatching them to the event bus.
  */
 public class HttpsServerLevel extends Level implements Server {
 
-    protected final double boundaryX;
-    protected final double boundaryY;
-
     private final HttpsServer server;
-    private final Map<UUID, ServerPlayer> players;
-    private final Map<UUID, Entity> entities;
     private boolean running;
 
     public HttpsServerLevel(HttpsServer server, Game game) {
         super(game);
         this.server = server;
-        this.boundaryX = Option.WEIGHT_RESOLUTION.getValue();
-        this.boundaryY = Option.HEIGHT_RESOLUTION.getValue();
-        this.players = new HashMap<>();
-        this.entities = new HashMap<>();
         this.running = false;
 
         if (this.server != null) {
@@ -52,11 +40,13 @@ public class HttpsServerLevel extends Level implements Server {
                             if (type == 0) {
                                 InputPayload payload = new InputPayload(0, 0, null, 0, null, false);
                                 payload.deserialize(dis);
-                                game.getServerBus().post(payload);
+                                // Relay to client bus so the client reacts to server state/input updates
+                                game.getClientBus().post(payload);
                             } else if (type == 1) {
                                 GamepadInputPayload payload = new GamepadInputPayload(0, 0, false, false, false, false, false, false, false, false, false, false, false, false, false);
                                 payload.deserialize(dis);
-                                game.getServerBus().post(payload);
+                                // Relay to client bus
+                                game.getClientBus().post(payload);
                             }
                         } catch (Exception e) {
                             e.printStackTrace();
@@ -72,21 +62,18 @@ public class HttpsServerLevel extends Level implements Server {
 
     @Override
     public ServerPlayer getPlayer(UUID uuid) {
-        return this.players.get(uuid);
+        // Not needed for a bridge
+        return null;
     }
 
     @Override
     public void addPlayer(ServerPlayer serverPlayer) {
-        players.put(serverPlayer.getUuid(), serverPlayer);
-        this.game.getServerBus().register(serverPlayer);
-        serverPlayer.setLevel(this);
+        // Not needed for a bridge
     }
 
     @Override
     public void tick() {
-        for (ServerPlayer player : this.players.values()) {
-            player.tick();
-        }
+        // Bridge doesn't tick physics itself, it reacts to incoming payloads
     }
 
     @Override
@@ -106,15 +93,5 @@ public class HttpsServerLevel extends Level implements Server {
         if (this.server != null) {
             this.server.stop(0);
         }
-    }
-
-    @Override
-    public double getBoundaryX() {
-        return this.boundaryX;
-    }
-
-    @Override
-    public double getBoundaryY() {
-        return this.boundaryY;
     }
 }
