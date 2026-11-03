@@ -20,6 +20,10 @@ public class EventBus {
         }
     }
 
+    public void register(){
+
+    }
+
     public void register(Object listener){
         Class<?> clazz = listener.getClass();
 

@@ -64,4 +64,31 @@ public class Entity {
         return this.mass;
     }
 
+    public void setX(double x) {
+        this.x = x;
+    }
+
+    public void setY(double y) {
+        this.y = y;
+    }
+
+    public void setOrientation(double orientation) {
+        this.orientation = orientation;
+    }
+
+    public void setVelocityX(double velocityX) {
+        this.velocityX = velocityX;
+    }
+
+    public void setVelocityY(double velocityY) {
+        this.velocityY = velocityY;
+    }
+
+    public void setAccelerationX(double accelerationX) {
+        this.accelerationX = accelerationX;
+    }
+
+    public void setAccelerationY(double accelerationY) {
+        this.accelerationY = accelerationY;
+    }
 }

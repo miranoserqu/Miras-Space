@@ -12,13 +12,16 @@ import java.util.*;
  * Server-side game logic handler.
  * Processes player input and updates game state.
  */
-public class ServerLevel extends Level {
+public class ServerLevel extends Level implements Server {
 
     private static final int TICKS_PER_SECOND = 60;
     private static final int TICK_INTERVAL_MS = 1000 / TICKS_PER_SECOND;
 
     private long lastTick;
     private double tickAccumulator = 0;
+
+    protected final double boundaryX;
+    protected final double boundaryY;
 
     private Map<UUID, ServerPlayer> players;
     private Map<UUID, Entity> entities;
@@ -29,7 +32,9 @@ public class ServerLevel extends Level {
      * Creates a new game server.
      */
     public ServerLevel(Game game) {
-        super(Option.WEIGHT_RESOLUTION.getValue(), Option.HEIGHT_RESOLUTION.getValue(), game);
+        super(game);
+        this.boundaryX = Option.WEIGHT_RESOLUTION.getValue();
+        this.boundaryY = Option.HEIGHT_RESOLUTION.getValue();
         this.players = new HashMap<>();
         this.entities = new HashMap<>();
         this.running = false;
@@ -40,12 +45,14 @@ public class ServerLevel extends Level {
      *
      * @param serverPlayer the player to add
      */
+    @Override
     public void addPlayer(ServerPlayer serverPlayer) {
         players.put(serverPlayer.getUuid(), serverPlayer);
         this.game.getServerBus().register(serverPlayer);
         serverPlayer.setLevel(this);
     }
 
+    @Override
     public ServerPlayer getPlayer(UUID uuid){
         return this.players.get(uuid);
     }
@@ -62,6 +69,7 @@ public class ServerLevel extends Level {
     /**
      * Starts the game server loop.
      */
+    @Override
     public void start() {
         if (running) {
             return;
@@ -95,6 +103,7 @@ public class ServerLevel extends Level {
     /**
      * Stops the game server loop.
      */
+    @Override
     public void stop() {
         running = false;
         if (gameThread != null) {
@@ -110,7 +119,8 @@ public class ServerLevel extends Level {
      * Performs one game tick: update logic and prepare state for clients.
      * Note: Actual game logic is handled in processPlayerInput which is called from the client tick.
      */
-    private void tick() {
+    @Override
+    public void tick() {
         for(ServerPlayer player : this.players.values()){
             player.tick();
         }
@@ -129,4 +139,17 @@ public class ServerLevel extends Level {
     public static int getTicksPerSecond() {
         return TICKS_PER_SECOND;
     }
+
+
+
+    @Override
+    public double getBoundaryX(){
+        return this.boundaryX;
+    }
+
+    @Override
+    public double getBoundaryY(){
+        return this.boundaryY;
+    }
+
 }
