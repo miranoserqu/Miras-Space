@@ -10,7 +10,7 @@ class HttpsServerLevelTest {
     @Test
     void testHttpsServerLevelBridgeMethods() {
         Game game = new Game();
-        HttpsServerLevel level = new HttpsServerLevel(null, game);
+        HttpsServerLevel level = new HttpsServerLevel(null, null, game);
 
         // Verify bridge methods
         assertNull(level.getPlayer(null));
