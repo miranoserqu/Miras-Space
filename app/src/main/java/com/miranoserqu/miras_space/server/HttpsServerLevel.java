@@ -1,7 +1,10 @@
 package com.miranoserqu.miras_space.server;
 
 import com.miranoserqu.miras_space.Game;
+<<<<<<< HEAD
 import com.miranoserqu.miras_space.client.ClientLevel;
+=======
+>>>>>>> worktree-fix-https-server-level
 import com.miranoserqu.miras_space.client.ClientPlayer;
 import com.miranoserqu.miras_space.event.SubscribeEvent;
 import com.miranoserqu.miras_space.game.Level;
@@ -13,6 +16,10 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpsServer;
 
 import java.io.*;
+<<<<<<< HEAD
+=======
+import java.util.ArrayList;
+>>>>>>> worktree-fix-https-server-level
 import java.util.UUID;
 
 /**
@@ -25,6 +32,7 @@ public class HttpsServerLevel extends Level implements Server {
     private final HttpsServer server;
     private final ClientPlayer player;
     private boolean running;
+    private volatile boolean hasPendingInputRequest = false;
 
     public HttpsServerLevel(HttpsServer server, ClientPlayer player, Game game) {
         super(game);
@@ -33,6 +41,10 @@ public class HttpsServerLevel extends Level implements Server {
         this.running = false;
 
         if (this.server != null) {
+<<<<<<< HEAD
+=======
+            // Contexto para recibir payloads del servidor/cliente
+>>>>>>> worktree-fix-https-server-level
             this.server.createContext("/" + player.getUuid().toString() + "/output/", new HttpHandler() {
                 @Override
                 public void handle(HttpExchange exchange) throws IOException {
@@ -40,6 +52,7 @@ public class HttpsServerLevel extends Level implements Server {
                         try (InputStream is = exchange.getRequestBody();
                              DataInputStream dis = new DataInputStream(is)) {
 
+<<<<<<< HEAD
                             int type = dis.readInt();
                             switch(type){
                                 case InputPayload.ID -> {
@@ -52,6 +65,17 @@ public class HttpsServerLevel extends Level implements Server {
                                     payload.deserialize(dis);
                                     game.getClientBus().post(payload);
                                 }
+=======
+                            int type = dis.readByte();
+                            if (type == 0) {
+                                InputPayload payload = new InputPayload(0, 0, new ArrayList<>(), 0, new UUID(0, 0), false);
+                                payload.deserialize(dis);
+                                game.getClientBus().post(payload);
+                            } else if (type == 1) {
+                                GamepadInputPayload payload = new GamepadInputPayload(0, 0, false, false, false, false, false, false, false, false, false, false, false, false, false);
+                                payload.deserialize(dis);
+                                game.getClientBus().post(payload);
+>>>>>>> worktree-fix-https-server-level
                             }
                         } catch (Exception e) {
                             e.printStackTrace();
@@ -62,23 +86,39 @@ public class HttpsServerLevel extends Level implements Server {
                     }
                 }
             });
+
+            // Contexto para notificar si hay solicitud de input pendiente (se envía una vez y se limpia)
+            this.server.createContext("/input/", new HttpHandler() {
+                @Override
+                public void handle(HttpExchange exchange) throws IOException {
+                    if (hasPendingInputRequest) {
+                        hasPendingInputRequest = false; // Se marca como enviado para que solo se envíe una vez
+                        exchange.sendResponseHeaders(200, 0);
+                        exchange.getResponseBody().close();
+                    } else {
+                        exchange.sendResponseHeaders(204, -1); // No content
+                    }
+                }
+            });
         }
+    }
+
+    @SubscribeEvent
+    public void onPlayerInputRequest(InputRequestPayload payload){
+        this.hasPendingInputRequest = true;
     }
 
     @Override
     public ServerPlayer getPlayer(UUID uuid) {
-        // Not needed for a bridge
         return null;
     }
 
     @Override
     public void addPlayer(ServerPlayer serverPlayer) {
-        // Not needed for a bridge
     }
 
     @Override
     public void tick() {
-        // Bridge doesn't tick physics itself, it reacts to incoming payloads
     }
 
     @Override
