@@ -1,10 +1,6 @@
 package com.miranoserqu.miras_space.server;
 
 import com.miranoserqu.miras_space.Game;
-<<<<<<< HEAD
-import com.miranoserqu.miras_space.client.ClientLevel;
-=======
->>>>>>> worktree-fix-https-server-level
 import com.miranoserqu.miras_space.client.ClientPlayer;
 import com.miranoserqu.miras_space.event.SubscribeEvent;
 import com.miranoserqu.miras_space.game.Level;
@@ -16,10 +12,7 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpsServer;
 
 import java.io.*;
-<<<<<<< HEAD
-=======
 import java.util.ArrayList;
->>>>>>> worktree-fix-https-server-level
 import java.util.UUID;
 
 /**
@@ -41,10 +34,7 @@ public class HttpsServerLevel extends Level implements Server {
         this.running = false;
 
         if (this.server != null) {
-<<<<<<< HEAD
-=======
             // Contexto para recibir payloads del servidor/cliente
->>>>>>> worktree-fix-https-server-level
             this.server.createContext("/" + player.getUuid().toString() + "/output/", new HttpHandler() {
                 @Override
                 public void handle(HttpExchange exchange) throws IOException {
@@ -52,20 +42,6 @@ public class HttpsServerLevel extends Level implements Server {
                         try (InputStream is = exchange.getRequestBody();
                              DataInputStream dis = new DataInputStream(is)) {
 
-<<<<<<< HEAD
-                            int type = dis.readInt();
-                            switch(type){
-                                case InputPayload.ID -> {
-                                    InputPayload payload = new InputPayload();
-                                    payload.deserialize(dis);
-                                    game.getClientBus().post(payload);
-                                }
-                                case GamepadInputPayload.ID -> {
-                                    GamepadInputPayload payload = new GamepadInputPayload();
-                                    payload.deserialize(dis);
-                                    game.getClientBus().post(payload);
-                                }
-=======
                             int type = dis.readByte();
                             if (type == 0) {
                                 InputPayload payload = new InputPayload(0, 0, new ArrayList<>(), 0, new UUID(0, 0), false);
@@ -75,7 +51,6 @@ public class HttpsServerLevel extends Level implements Server {
                                 GamepadInputPayload payload = new GamepadInputPayload(0, 0, false, false, false, false, false, false, false, false, false, false, false, false, false);
                                 payload.deserialize(dis);
                                 game.getClientBus().post(payload);
->>>>>>> worktree-fix-https-server-level
                             }
                         } catch (Exception e) {
                             e.printStackTrace();
@@ -139,25 +114,4 @@ public class HttpsServerLevel extends Level implements Server {
             this.server.stop(0);
         }
     }
-
-    @SubscribeEvent
-    public void onPlayerInputRequest(InputRequestPayload payload){
-        this.server.createContext("/input/", new HttpHandler() {
-            @Override
-            public void handle(HttpExchange exchange) throws IOException {
-                ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-
-                DataOutputStream dos = new DataOutputStream(buffer);
-                payload.serialize(dos);
-                dos.flush();
-
-                byte[] responseBytes = buffer.toByteArray();
-                exchange.sendResponseHeaders(200, responseBytes.length);
-                try (OutputStream os = exchange.getResponseBody()) {
-                    os.write(responseBytes);
-                }
-            }
-        });
-    }
-
 }
