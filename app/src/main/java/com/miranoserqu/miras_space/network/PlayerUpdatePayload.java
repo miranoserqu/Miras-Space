@@ -15,6 +15,11 @@ public class PlayerUpdatePayload implements Payload {
     public double vY;
     public double aX;
     public double aY;
+    public static final int ID = 1;
+
+    public PlayerUpdatePayload(){
+
+    }
 
     public PlayerUpdatePayload(UUID playerUUID, double x, double y, double angle, double vX, double vY, double aX, double aY){
         this.playerUUID = playerUUID;
@@ -29,6 +34,7 @@ public class PlayerUpdatePayload implements Payload {
 
     @Override
     public void serialize(DataOutputStream buf) throws IOException {
+        buf.writeInt(ID);
         buf.writeLong(playerUUID.getMostSignificantBits());
         buf.writeLong(playerUUID.getLeastSignificantBits());
         buf.writeDouble(x);
@@ -42,6 +48,7 @@ public class PlayerUpdatePayload implements Payload {
 
     @Override
     public void deserialize(DataInputStream buf) throws IOException {
+        if(buf.readInt() != ID) throw new RuntimeException("payload type does not match");
         long most = buf.readLong();
         long least = buf.readLong();
         this.playerUUID = new UUID(most, least);

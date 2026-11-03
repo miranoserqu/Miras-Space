@@ -1,16 +1,18 @@
 package com.miranoserqu.miras_space.server;
 
 import com.miranoserqu.miras_space.Game;
+import com.miranoserqu.miras_space.client.ClientLevel;
+import com.miranoserqu.miras_space.client.ClientPlayer;
+import com.miranoserqu.miras_space.event.SubscribeEvent;
 import com.miranoserqu.miras_space.game.Level;
 import com.miranoserqu.miras_space.network.GamepadInputPayload;
 import com.miranoserqu.miras_space.network.InputPayload;
+import com.miranoserqu.miras_space.network.InputRequestPayload;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpsServer;
 
-import java.io.DataInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.util.UUID;
 
 /**
@@ -21,32 +23,35 @@ import java.util.UUID;
 public class HttpsServerLevel extends Level implements Server {
 
     private final HttpsServer server;
+    private final ClientPlayer player;
     private boolean running;
 
-    public HttpsServerLevel(HttpsServer server, Game game) {
+    public HttpsServerLevel(HttpsServer server, ClientPlayer player, Game game) {
         super(game);
+        this.player = player;
         this.server = server;
         this.running = false;
 
         if (this.server != null) {
-            this.server.createContext("/", new HttpHandler() {
+            this.server.createContext("/" + player.getUuid().toString() + "/output/", new HttpHandler() {
                 @Override
                 public void handle(HttpExchange exchange) throws IOException {
                     if ("POST".equalsIgnoreCase(exchange.getRequestMethod())) {
                         try (InputStream is = exchange.getRequestBody();
                              DataInputStream dis = new DataInputStream(is)) {
 
-                            int type = dis.readByte();
-                            if (type == 0) {
-                                InputPayload payload = new InputPayload(0, 0, null, 0, null, false);
-                                payload.deserialize(dis);
-                                // Relay to client bus so the client reacts to server state/input updates
-                                game.getClientBus().post(payload);
-                            } else if (type == 1) {
-                                GamepadInputPayload payload = new GamepadInputPayload(0, 0, false, false, false, false, false, false, false, false, false, false, false, false, false);
-                                payload.deserialize(dis);
-                                // Relay to client bus
-                                game.getClientBus().post(payload);
+                            int type = dis.readInt();
+                            switch(type){
+                                case InputPayload.ID -> {
+                                    InputPayload payload = new InputPayload();
+                                    payload.deserialize(dis);
+                                    game.getClientBus().post(payload);
+                                }
+                                case GamepadInputPayload.ID -> {
+                                    GamepadInputPayload payload = new GamepadInputPayload();
+                                    payload.deserialize(dis);
+                                    game.getClientBus().post(payload);
+                                }
                             }
                         } catch (Exception e) {
                             e.printStackTrace();
@@ -94,4 +99,25 @@ public class HttpsServerLevel extends Level implements Server {
             this.server.stop(0);
         }
     }
+
+    @SubscribeEvent
+    public void onPlayerInputRequest(InputRequestPayload payload){
+        this.server.createContext("/input/", new HttpHandler() {
+            @Override
+            public void handle(HttpExchange exchange) throws IOException {
+                ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+
+                DataOutputStream dos = new DataOutputStream(buffer);
+                payload.serialize(dos);
+                dos.flush();
+
+                byte[] responseBytes = buffer.toByteArray();
+                exchange.sendResponseHeaders(200, responseBytes.length);
+                try (OutputStream os = exchange.getResponseBody()) {
+                    os.write(responseBytes);
+                }
+            }
+        });
+    }
+
 }

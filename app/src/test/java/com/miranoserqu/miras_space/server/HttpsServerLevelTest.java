@@ -1,7 +1,10 @@
 package com.miranoserqu.miras_space.server;
 
 import com.miranoserqu.miras_space.Game;
+import com.miranoserqu.miras_space.client.ClientPlayer;
 import org.junit.jupiter.api.Test;
+
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -10,12 +13,12 @@ class HttpsServerLevelTest {
     @Test
     void testHttpsServerLevelBridgeMethods() {
         Game game = new Game();
-        HttpsServerLevel level = new HttpsServerLevel(null, game);
+        HttpsServerLevel level = new HttpsServerLevel(null, null, game);
 
         // Verify bridge methods
         assertNull(level.getPlayer(null));
-        assertDoesNotThrow(() -> level.tick());
-        assertDoesNotThrow(() -> level.start());
-        assertDoesNotThrow(() -> level.stop());
+        assertDoesNotThrow(level::tick);
+        assertDoesNotThrow(level::start);
+        assertDoesNotThrow(level::stop);
     }
 }

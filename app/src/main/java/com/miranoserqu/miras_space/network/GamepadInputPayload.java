@@ -21,6 +21,11 @@ public class GamepadInputPayload implements Payload {
     public boolean left;
     public boolean up;
     public boolean down;
+    public static final int ID = 2;
+
+    public GamepadInputPayload(){
+
+    }
 
     public GamepadInputPayload(float xAxis, float yAxis, boolean a, boolean b, boolean x, boolean y, boolean lt, boolean lb, boolean rt, boolean rb, boolean start, boolean right, boolean left, boolean up, boolean down){
         this.xAxis = xAxis;
@@ -42,6 +47,7 @@ public class GamepadInputPayload implements Payload {
 
     @Override
     public void serialize(DataOutputStream buf) throws IOException {
+        buf.writeInt(ID);
         buf.writeFloat(xAxis);
         buf.writeFloat(yAxis);
         buf.writeBoolean(a);
@@ -61,6 +67,7 @@ public class GamepadInputPayload implements Payload {
 
     @Override
     public void deserialize(DataInputStream buf) throws IOException {
+        if(buf.readInt() != ID) throw new RuntimeException("payload type does not match");
         this.xAxis = buf.readFloat();
         this.yAxis = buf.readFloat();
         this.a = buf.readBoolean();
