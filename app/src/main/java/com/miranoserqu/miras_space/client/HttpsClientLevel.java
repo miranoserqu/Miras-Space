@@ -6,12 +6,17 @@ import com.miranoserqu.miras_space.game.Level;
 import com.miranoserqu.miras_space.network.GamepadInputPayload;
 import com.miranoserqu.miras_space.network.InputPayload;
 import com.miranoserqu.miras_space.network.InputRequestPayload;
-import com.miranoserqu.miras_space.server.HttpsServerLevel;
+import com.miranoserqu.miras_space.server.ServerLevel;
+import com.miranoserqu.miras_space.server.ServerPlayer;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
 import java.io.*;
 import java.net.InetSocketAddress;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -20,20 +25,20 @@ import java.util.concurrent.ThreadPoolExecutor;
 
 public class HttpsClientLevel extends Level {
 
-    private HttpServer server;
-    private ThreadPoolExecutor executor;
-    private final Map<UUID, HttpsServerLevel> clients = new ConcurrentHashMap<>();
+    private final HttpServer server;
+    private final ThreadPoolExecutor executor;
+    private final ServerLevel serverLevel;
+    private final Map<UUID, String> clientCallbackUrls = new ConcurrentHashMap<>();
 
-    public HttpsClientLevel(Game game, int port) throws IOException {
+    public HttpsClientLevel(Game game, int port, ServerLevel serverLevel) throws IOException {
         super(game);
-
+        this.serverLevel = serverLevel;
         this.server = HttpServer.create(new InetSocketAddress("0.0.0.0", port), 0);
         this.executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(10);
         this.server.setExecutor(executor);
 
         this.server.createContext("/register", this::handleClientRegistration);
-
-        game.registerClient(this);
+        game.getServerBus().register(this);
     }
 
     public String getServerUrl() {
@@ -59,20 +64,19 @@ public class HttpsClientLevel extends Level {
         try (DataInputStream dis = new DataInputStream(exchange.getRequestBody())) {
             UUID clientId = new UUID(dis.readLong(), dis.readLong());
             String clientName = dis.readUTF();
+            String clientCallbackUrl = dis.readUTF(); // El cliente envía su propia URL de callback
 
-            HttpsServerLevel client = clients.computeIfAbsent(clientId, id -> {
-                System.out.println("[REGISTRO] Nuevo cliente vinculado: " + id);
-                try {
-                    return new HttpsServerLevel(this.server, new ClientPlayer(id, clientName, this), this.game);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            });
+            clientCallbackUrls.put(clientId, clientCallbackUrl);
+
+            ServerPlayer serverPlayer = new ServerPlayer(clientId, clientName, this.serverLevel);
+            this.serverLevel.addPlayer(serverPlayer);
+
+            System.out.println("[REGISTRO] Cliente registrado en servidor: " + clientName + " (" + clientId + ")");
 
             exchange.sendResponseHeaders(200, -1);
             exchange.close();
 
-            this.server.createContext("/" + clientId.toString() + "/output", this::handleInputRequest);
+            // Registrar contexto para recibir inputs de este cliente por POST
             this.server.createContext("/" + clientId.toString() + "/input", this::handleInputRequest);
 
         } catch (Exception e) {
@@ -89,19 +93,19 @@ public class HttpsClientLevel extends Level {
             return;
         }
 
-        InputStream is = exchange.getRequestBody();
-        DataInputStream dis = new DataInputStream(is);
-        int type = dis.readInt();
-        switch(type) {
-            case InputPayload.ID -> {
-                InputPayload payload = new InputPayload();
-                payload.deserialize(dis);
-                game.getClientBus().post(payload);
-            }
-            case GamepadInputPayload.ID -> {
-                GamepadInputPayload payload = new GamepadInputPayload();
-                payload.deserialize(dis);
-                game.getClientBus().post(payload);
+        try (DataInputStream dis = new DataInputStream(exchange.getRequestBody())) {
+            int type = dis.readInt();
+            switch(type) {
+                case InputPayload.ID -> {
+                    InputPayload payload = new InputPayload();
+                    payload.deserialize(dis);
+                    game.getServerBus().post(payload);
+                }
+                case GamepadInputPayload.ID -> {
+                    GamepadInputPayload payload = new GamepadInputPayload();
+                    payload.deserialize(dis);
+                    game.getServerBus().post(payload);
+                }
             }
         }
         exchange.sendResponseHeaders(200, -1);
@@ -116,5 +120,32 @@ public class HttpsClientLevel extends Level {
     public void stop(int delaySegundos) {
         this.server.stop(delaySegundos);
         this.executor.shutdown();
+    }
+
+    @SubscribeEvent
+    public void onPlayerInputRequest(InputRequestPayload payload) {
+        try {
+            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+            DataOutputStream dos = new DataOutputStream(buffer);
+            payload.serialize(dos);
+            dos.flush();
+            byte[] payloadBytes = buffer.toByteArray();
+
+            HttpClient httpClient = HttpClient.newHttpClient();
+            for (Map.Entry<UUID, String> entry : clientCallbackUrls.entrySet()) {
+                UUID playerUUID = entry.getKey();
+                String callbackUrl = entry.getValue();
+
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(callbackUrl + "/" + playerUUID.toString() + "/output"))
+                        .header("Content-Type", "application/octet-stream")
+                        .POST(HttpRequest.BodyPublishers.ofByteArray(payloadBytes))
+                        .build();
+
+                httpClient.sendAsync(request, HttpResponse.BodyHandlers.discarding());
+            }
+        } catch (Exception e) {
+            System.err.println("[ERROR] Fallo al enviar solicitud de input a clientes: " + e.getMessage());
+        }
     }
 }
