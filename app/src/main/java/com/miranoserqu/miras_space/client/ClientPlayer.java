@@ -11,14 +11,14 @@ import org.lwjgl.opengl.GL11;
 
 public class ClientPlayer extends Player {
 
-    private ClientLevel level;
+    private Level level;
 
     public ClientPlayer(double x, double y, double orientation, double velocityX, double velocityY, UUID uuid, String name, ClientLevel level) {
         super(x, y, orientation, velocityX, velocityY, uuid, name);
         this.level = level;
     }
 
-    public ClientPlayer(UUID uuid, String name, ClientLevel level){
+    public ClientPlayer(UUID uuid, String name, Level level){
         super(uuid, name);
         this.level = level;
     }

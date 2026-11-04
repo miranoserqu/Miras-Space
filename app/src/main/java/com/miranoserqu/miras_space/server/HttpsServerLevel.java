@@ -1,152 +1,172 @@
 package com.miranoserqu.miras_space.server;
 
 import com.miranoserqu.miras_space.Game;
-import com.miranoserqu.miras_space.client.ClientLevel;
 import com.miranoserqu.miras_space.client.ClientPlayer;
+import com.miranoserqu.miras_space.client.HttpsClientLevel;
 import com.miranoserqu.miras_space.event.SubscribeEvent;
 import com.miranoserqu.miras_space.game.Level;
 import com.miranoserqu.miras_space.network.GamepadInputPayload;
 import com.miranoserqu.miras_space.network.InputPayload;
 import com.miranoserqu.miras_space.network.InputRequestPayload;
+import com.miranoserqu.miras_space.network.Payload;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpsServer;
 
 import java.io.*;
-import java.util.ArrayList;
-import java.util.UUID;
+import java.net.InetSocketAddress;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.util.*;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * HTTPS server-side game level handler.
  * Acts as a bridge between the remote server and the client, listening for payloads
  * and dispatching them to the event bus.
  */
-public class HttpsServerLevel extends Level implements Server {
+public class HttpsServerLevel extends Level {
 
     private final HttpsServer server;
     private final ClientPlayer player;
+    private final Queue<Payload> pendingPayloads;
     private boolean running;
     private volatile boolean hasPendingInputRequest = false;
 
-    public HttpsServerLevel(HttpsServer server, ClientPlayer player, Game game) {
+    public HttpsServerLevel(HttpsServer server, ClientPlayer player, Game game) throws IOException, InterruptedException {
         super(game);
         this.player = player;
         this.server = server;
         this.running = false;
+        this.pendingPayloads = new ConcurrentLinkedQueue<>();
 
         if (this.server != null) {
-            // Contexto para recibir payloads del servidor/cliente
-            this.server.createContext("/" + player.getUuid().toString() + "/output/", new HttpHandler() {
-                @Override
-                public void handle(HttpExchange exchange) throws IOException {
-                    if ("POST".equalsIgnoreCase(exchange.getRequestMethod())) {
-                        try (InputStream is = exchange.getRequestBody();
-                             DataInputStream dis = new DataInputStream(is)) {
-                            int type = dis.readInt();
-                            switch (type) {
-                                case InputPayload.ID -> {
-                                    InputPayload payload = new InputPayload();
-                                    payload.deserialize(dis);
-                                    game.getClientBus().post(payload);
-                                }
-                                case GamepadInputPayload.ID -> {
-                                    GamepadInputPayload payload = new GamepadInputPayload();
-                                    payload.deserialize(dis);
-                                    game.getClientBus().post(payload);
-                                }
-                            }
-                            int type = dis.readByte();
-                            if (type == 0) {
-                                InputPayload payload = new InputPayload(0, 0, new ArrayList<>(), 0, new UUID(0, 0), false);
-                                payload.deserialize(dis);
-                                game.getClientBus().post(payload);
-                            } else if (type == 1) {
-                                GamepadInputPayload payload = new GamepadInputPayload(0, 0, false, false, false, false, false, false, false, false, false, false, false, false, false);
-                                payload.deserialize(dis);
-                                game.getClientBus().post(payload);
-                            }
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                        exchange.sendResponseHeaders(200, -1);
-                    } else {
-                        exchange.sendResponseHeaders(405, -1);
-                    }
-                }
-            });
+            this.server.createContext("/" + player.getUuid().toString() + "/output/", this::handleOutputRequest);
 
-            // Contexto para notificar si hay solicitud de input pendiente (se envía una vez y se limpia)
-            this.server.createContext("/input/", new HttpHandler() {
-                @Override
-                public void handle(HttpExchange exchange) throws IOException {
-                    if (hasPendingInputRequest) {
-                        hasPendingInputRequest = false; // Se marca como enviado para que solo se envíe una vez
-                        exchange.sendResponseHeaders(200, 0);
-                        exchange.getResponseBody().close();
-                    } else {
-                        exchange.sendResponseHeaders(204, -1); // No content
-                    }
-                }
-            });
+            this.server.createContext("/" + this.player.getUuid().toString() + "/input/", this::handleInputRequest);
+
+            this.registerOntoServer(this.getServerUrl());
         }
+
+        game.registerServer(this);
     }
 
+    public String getServerUrl() {
+        InetSocketAddress address = this.server.getAddress();
 
-    @SubscribeEvent
-    public void onPlayerInputRequest(InputRequestPayload payload){
-        this.hasPendingInputRequest = true;
+        // Si no está iniciado o socket no vinculado, retornamos vacío o fallback
+        if (address == null) {
+            throw new IllegalStateException("El servidor aún no ha sido vinculado a una dirección.");
+        }
+
+        String host = address.getHostString();
+
+        if ("0.0.0.0".equals(host) || "0:0:0:0:0:0:0:0".equals(host) || "::".equals(host)) {
+            host = "127.0.0.1";
+        }
+
+        int port = address.getPort();
+
+        return String.format("http://%s:%d", host, port);
     }
 
-    @Override
-    public ServerPlayer getPlayer(UUID uuid) {
-        return null;
-    }
-
-    @Override
-    public void addPlayer(ServerPlayer serverPlayer) {
-    }
-
-    @Override
-    public void tick() {
-    }
-
-    @Override
-    public void start() {
-        if (running) {
+    private void handleInputRequest(HttpExchange exchange) throws IOException {
+        if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            exchange.sendResponseHeaders(405, -1);
+            exchange.close();
             return;
         }
-        running = true;
-        if (this.server != null) {
-            this.server.start();
+
+        Payload payload = pendingPayloads.poll();
+
+        if (payload != null) {
+            sendPayload(exchange, payload);
+        } else {
+            exchange.sendResponseHeaders(204, -1);
+            exchange.close();
         }
     }
 
-    @Override
-    public void stop() {
-        running = false;
-        if (this.server != null) {
-            this.server.stop(0);
+    private void registerOntoServer(String hostURL) throws IOException, InterruptedException {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        DataOutputStream dos = new DataOutputStream(buffer);
+        UUID uuid = this.player.getUuid();
+        dos.writeLong(uuid.getMostSignificantBits());
+        dos.writeLong(uuid.getLeastSignificantBits());
+        dos.writeUTF(this.player.getName());
+        dos.flush();
+
+        byte[] payload = buffer.toByteArray();
+
+        // 2. Enviar petición HTTP POST al endpoint /register
+        HttpClient httpClient = HttpClient.newHttpClient();
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(hostURL + "/register"))
+                .header("Content-Type", "application/octet-stream")
+                .POST(HttpRequest.BodyPublishers.ofByteArray(payload))
+                .build();
+
+        HttpResponse<Void> response = httpClient.send(request, HttpResponse.BodyHandlers.discarding());
+
+        if (response.statusCode() == 200) {
+            System.out.println("[CLIENTE] Player registered successfully with UUID: " + uuid);
+        } else {
+            throw new RuntimeException("Error registering client. Código HTTP: " + response.statusCode());
+        }
+    }
+
+    private void handleOutputRequest(HttpExchange exchange) throws IOException {
+        if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+            exchange.sendResponseHeaders(405, -1);
+            exchange.close();
+            return;
+        }
+
+        InputStream is = exchange.getRequestBody();
+        DataInputStream dis = new DataInputStream(is);
+        int type = dis.readInt();
+        switch (type) {
+            case InputRequestPayload.ID -> {
+                InputRequestPayload payload = new InputRequestPayload();
+                payload.deserialize(dis);
+                game.getServerBus().post(payload);
+            }
+        }
+        exchange.sendResponseHeaders(200, -1);
+    }
+
+    private void sendPayload(HttpExchange exchange, Payload payload) throws IOException {
+        try {
+            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+            DataOutputStream dos = new DataOutputStream(buffer);
+
+            payload.serialize(dos);
+            dos.flush();
+
+            byte[] responseBytes = buffer.toByteArray();
+            exchange.sendResponseHeaders(200, responseBytes.length);
+
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(responseBytes);
+            }
+        } catch (Exception e) {
+            // Si la serialización falla antes de enviar headers, responder con 500
+            System.err.println("Error serializing payload: " + e.getMessage());
+            exchange.sendResponseHeaders(500, -1);
+            exchange.close();
         }
     }
 
     @SubscribeEvent
-    public void onPlayerInputRequest(InputRequestPayload payload){
-        this.server.createContext("/input/", new HttpHandler() {
-            @Override
-            public void handle(HttpExchange exchange) throws IOException {
-                ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+    public void onPlayerInput(InputPayload payload){
+        this.pendingPayloads.add(payload);
+    }
 
-                DataOutputStream dos = new DataOutputStream(buffer);
-                payload.serialize(dos);
-                dos.flush();
-
-                byte[] responseBytes = buffer.toByteArray();
-                exchange.sendResponseHeaders(200, responseBytes.length);
-                try (OutputStream os = exchange.getResponseBody()) {
-                    os.write(responseBytes);
-                }
-            }
-        });
+    @SubscribeEvent
+    public void onPlayerGamepadInput(GamepadInputPayload payload){
+        this.pendingPayloads.add(payload);
     }
 
 }

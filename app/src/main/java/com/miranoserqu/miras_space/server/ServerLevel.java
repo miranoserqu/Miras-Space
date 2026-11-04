@@ -12,7 +12,7 @@ import java.util.*;
  * Server-side game logic handler.
  * Processes player input and updates game state.
  */
-public class ServerLevel extends Level implements Server {
+public class ServerLevel extends Level {
 
     private static final int TICKS_PER_SECOND = 60;
     private static final int TICK_INTERVAL_MS = 1000 / TICKS_PER_SECOND;
@@ -38,6 +38,7 @@ public class ServerLevel extends Level implements Server {
         this.players = new HashMap<>();
         this.entities = new HashMap<>();
         this.running = false;
+        game.registerServer(this);
     }
 
     /**
@@ -45,14 +46,12 @@ public class ServerLevel extends Level implements Server {
      *
      * @param serverPlayer the player to add
      */
-    @Override
     public void addPlayer(ServerPlayer serverPlayer) {
         players.put(serverPlayer.getUuid(), serverPlayer);
         this.game.getServerBus().register(serverPlayer);
         serverPlayer.setLevel(this);
     }
 
-    @Override
     public ServerPlayer getPlayer(UUID uuid){
         return this.players.get(uuid);
     }
@@ -69,7 +68,6 @@ public class ServerLevel extends Level implements Server {
     /**
      * Starts the game server loop.
      */
-    @Override
     public void start() {
         if (running) {
             return;
@@ -103,7 +101,6 @@ public class ServerLevel extends Level implements Server {
     /**
      * Stops the game server loop.
      */
-    @Override
     public void stop() {
         running = false;
         if (gameThread != null) {
@@ -119,7 +116,6 @@ public class ServerLevel extends Level implements Server {
      * Performs one game tick: update logic and prepare state for clients.
      * Note: Actual game logic is handled in processPlayerInput which is called from the client tick.
      */
-    @Override
     public void tick() {
         for(ServerPlayer player : this.players.values()){
             player.tick();

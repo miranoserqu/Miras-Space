@@ -22,8 +22,6 @@ public class Main {
         Game game = new Game();
         ClientLevel client = new ClientLevel(game);
         ServerLevel server = new ServerLevel(game);
-        game.getClientBus().register(client);
-        game.getServerBus().register(server);
         ClientPlayer clientPlayer = new ClientPlayer(UUID.randomUUID(), "miranoserqu", client);
         ServerPlayer serverPlayer = new ServerPlayer(clientPlayer.getUuid(), clientPlayer.getName(), server);
         server.addPlayer(serverPlayer);
