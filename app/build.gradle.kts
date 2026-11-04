@@ -8,7 +8,6 @@
 plugins {
     // Apply the application plugin to add support for building a CLI application in Java.
     application
-    kotlin("jvm") version "1.9.23"
 }
 
 repositories {
@@ -126,29 +125,16 @@ tasks.named<Test>("test") {
     useJUnitPlatform()
 }
 
-tasks.register<JavaExec>("runClient") {
-    group = "application"
-    description = "Runs only client and asks for server address."
-
-    mainClass.set("com.miranoserqu.miras_space.ClientMain")
-    classpath = sourceSets["main"].runtimeClasspath
-    standardInput = System.`in`
-}
-
 tasks.register<JavaExec>("runServer") {
     group = "application"
-    description = "Runs only server host."
-
-    mainClass.set("com.miranoserqu.miras_space.ServerMain")
+    mainClass = "com.miranoserqu.miras_space.ServerMain"
     classpath = sourceSets["main"].runtimeClasspath
     standardInput = System.`in`
 }
 
-tasks.register<JavaExec>("runServerAndClient") {
+tasks.register<JavaExec>("runClient") {
     group = "application"
-    description = "Runs both server and client."
-
-    mainClass.set("com.miranoserqu.miras_space.Main")
+    mainClass = "com.miranoserqu.miras_space.ClientMain"
     classpath = sourceSets["main"].runtimeClasspath
     standardInput = System.`in`
 }
