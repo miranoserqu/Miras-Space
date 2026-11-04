@@ -124,3 +124,17 @@ tasks.named<Test>("test") {
     // Use JUnit Platform for unit tests.
     useJUnitPlatform()
 }
+
+tasks.register<JavaExec>("runServer") {
+    group = "application"
+    mainClass = "com.miranoserqu.miras_space.ServerMain"
+    classpath = sourceSets["main"].runtimeClasspath
+    standardInput = System.`in`
+}
+
+tasks.register<JavaExec>("runClient") {
+    group = "application"
+    mainClass = "com.miranoserqu.miras_space.ClientMain"
+    classpath = sourceSets["main"].runtimeClasspath
+    standardInput = System.`in`
+}
