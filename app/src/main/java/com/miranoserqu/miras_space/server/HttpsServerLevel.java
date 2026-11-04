@@ -2,7 +2,6 @@ package com.miranoserqu.miras_space.server;
 
 import com.miranoserqu.miras_space.Game;
 import com.miranoserqu.miras_space.client.ClientPlayer;
-import com.miranoserqu.miras_space.client.HttpsClientLevel;
 import com.miranoserqu.miras_space.event.SubscribeEvent;
 import com.miranoserqu.miras_space.game.Level;
 import com.miranoserqu.miras_space.network.GamepadInputPayload;
@@ -10,8 +9,7 @@ import com.miranoserqu.miras_space.network.InputPayload;
 import com.miranoserqu.miras_space.network.InputRequestPayload;
 import com.miranoserqu.miras_space.network.Payload;
 import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpHandler;
-import com.sun.net.httpserver.HttpsServer;
+import com.sun.net.httpserver.HttpServer;
 
 import java.io.*;
 import java.net.InetSocketAddress;
@@ -23,19 +21,18 @@ import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
- * HTTPS server-side game level handler.
+ * HTTP server-side game level handler.
  * Acts as a bridge between the remote server and the client, listening for payloads
  * and dispatching them to the event bus.
  */
 public class HttpsServerLevel extends Level {
 
-    private final HttpsServer server;
+    private final HttpServer server;
     private final ClientPlayer player;
     private final Queue<Payload> pendingPayloads;
     private boolean running;
-    private volatile boolean hasPendingInputRequest = false;
 
-    public HttpsServerLevel(HttpsServer server, ClientPlayer player, Game game) throws IOException, InterruptedException {
+    public HttpsServerLevel(HttpServer server, ClientPlayer player, Game game, String remoteServerUrl) throws IOException, InterruptedException {
         super(game);
         this.player = player;
         this.server = server;
@@ -43,20 +40,26 @@ public class HttpsServerLevel extends Level {
         this.pendingPayloads = new ConcurrentLinkedQueue<>();
 
         if (this.server != null) {
-            this.server.createContext("/" + player.getUuid().toString() + "/output/", this::handleOutputRequest);
+            this.server.createContext("/" + player.getUuid().toString() + "/output", this::handleOutputRequest);
+            this.server.createContext("/" + this.player.getUuid().toString() + "/input", this::handleInputRequest);
 
-            this.server.createContext("/" + this.player.getUuid().toString() + "/input/", this::handleInputRequest);
-
-            this.registerOntoServer(this.getServerUrl());
+            this.registerOntoServer(remoteServerUrl);
         }
 
         game.registerServer(this);
     }
 
+    public HttpsServerLevel(HttpServer server, ClientPlayer player, Game game) throws IOException {
+        super(game);
+        this.player = player;
+        this.server = server;
+        this.running = false;
+        this.pendingPayloads = new ConcurrentLinkedQueue<>();
+    }
+
     public String getServerUrl() {
         InetSocketAddress address = this.server.getAddress();
 
-        // Si no está iniciado o socket no vinculado, retornamos vacío o fallback
         if (address == null) {
             throw new IllegalStateException("El servidor aún no ha sido vinculado a una dirección.");
         }
@@ -89,7 +92,7 @@ public class HttpsServerLevel extends Level {
         }
     }
 
-    private void registerOntoServer(String hostURL) throws IOException, InterruptedException {
+    private void registerOntoServer(String remoteServerUrl) throws IOException, InterruptedException {
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(buffer);
         UUID uuid = this.player.getUuid();
@@ -100,10 +103,9 @@ public class HttpsServerLevel extends Level {
 
         byte[] payload = buffer.toByteArray();
 
-        // 2. Enviar petición HTTP POST al endpoint /register
         HttpClient httpClient = HttpClient.newHttpClient();
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(hostURL + "/register"))
+                .uri(URI.create(remoteServerUrl + "/register"))
                 .header("Content-Type", "application/octet-stream")
                 .POST(HttpRequest.BodyPublishers.ofByteArray(payload))
                 .build();
@@ -135,6 +137,7 @@ public class HttpsServerLevel extends Level {
             }
         }
         exchange.sendResponseHeaders(200, -1);
+        exchange.close();
     }
 
     private void sendPayload(HttpExchange exchange, Payload payload) throws IOException {
@@ -152,7 +155,6 @@ public class HttpsServerLevel extends Level {
                 os.write(responseBytes);
             }
         } catch (Exception e) {
-            // Si la serialización falla antes de enviar headers, responder con 500
             System.err.println("Error serializing payload: " + e.getMessage());
             exchange.sendResponseHeaders(500, -1);
             exchange.close();
