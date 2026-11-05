@@ -2,6 +2,7 @@ package com.miranoserqu.miras_space.game;
 
 import com.miranoserqu.miras_space.Game;
 import com.miranoserqu.miras_space.entity.Entity;
+import org.lwjgl.opengl.GL11;
 
 import java.util.UUID;
 
@@ -33,5 +34,8 @@ public class Player extends Entity {
     }
 
 
+    @Override
+    public void render(GL11 gl, double screenX, double screenY) {
 
+    }
 }

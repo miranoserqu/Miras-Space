@@ -87,6 +87,10 @@ public class ServerPlayer extends Player {
     @SubscribeEvent
     public void onPlayerInput(InputPayload payload) {
 
+        if(!payload.playerUUID.equals(this.uuid)){
+            return;
+        }
+
         List<Integer> inputs = payload.inputs;
 
         // Translate the held keys into thrust axes
@@ -221,6 +225,10 @@ public class ServerPlayer extends Player {
 
     @SubscribeEvent
     public void onPlayerGamepadInput(GamepadInputPayload payload) {
+
+        if(!payload.playerUUID.equals(this.uuid)){
+            return;
+        }
 
         this.turbo = false;
 

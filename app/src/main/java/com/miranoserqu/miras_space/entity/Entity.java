@@ -1,8 +1,10 @@
 package com.miranoserqu.miras_space.entity;
 
+import com.miranoserqu.miras_space.render.LWJGLRenderer;
+
 import java.util.UUID;
 
-public class Entity {
+public abstract class Entity {
 
     protected double x;
     protected double y;
@@ -27,6 +29,8 @@ public class Entity {
     public Entity(){
         this(UUID.randomUUID());
     }
+
+    public abstract void render(org.lwjgl.opengl.GL11 gl, double screenX, double screenY);
 
     public double getX() {
         return x;

@@ -1,6 +1,7 @@
 package com.miranoserqu.miras_space.render;
 
 import com.miranoserqu.miras_space.client.ClientPlayer;
+import com.miranoserqu.miras_space.entity.RemotePlayer;
 import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.glfw.GLFWVidMode;
 import org.lwjgl.opengl.GL;
@@ -9,6 +10,10 @@ import org.lwjgl.system.MemoryUtil;
 
 import java.nio.DoubleBuffer;
 import java.nio.IntBuffer;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 import static org.lwjgl.glfw.Callbacks.glfwFreeCallbacks;
 import static org.lwjgl.glfw.GLFW.*;
@@ -29,6 +34,7 @@ public class LWJGLRenderer {
     private int currentFPS = 0;
     private long lastSecond = System.nanoTime();
     private ClientPlayer localPlayer;
+    private Map<UUID, RemotePlayer> remotePlayers;
 
     private boolean[] keyStates = new boolean[GLFW_KEY_LAST + 1];
     private double mouseX = 0;
@@ -43,10 +49,15 @@ public class LWJGLRenderer {
     private int textureWidth = 256;
     private int textureHeight = 256;
 
-    public LWJGLRenderer(int width, int height, ClientPlayer player) {
+    public LWJGLRenderer(int width, int height, ClientPlayer player, Map<UUID, RemotePlayer> remotePlayers) {
         this.width = width;
         this.height = height;
         this.localPlayer = player;
+        this.remotePlayers = remotePlayers;
+    }
+
+    public void setLocalPlayer(ClientPlayer localPlayer){
+        this.localPlayer = localPlayer;
     }
 
     public boolean init() {
@@ -175,6 +186,21 @@ public class LWJGLRenderer {
     public void render() {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+        if (localPlayer == null) {
+            glfwSwapBuffers(window);
+            return;
+        }
+
+        // --- SNAPSHOT DE COORDENADAS (Evita desincronización por multithreading) ---
+        final double localX = localPlayer.getX();
+        final double localY = localPlayer.getY();
+        final double localVelX = localPlayer.getVelocityX();
+        final double localVelY = localPlayer.getVelocityY();
+        final double localAccelX = localPlayer.getAccelerationX();
+        final double localAccelY = localPlayer.getAccelerationY();
+        final double localOrient = localPlayer.getOrientation();
+        final UUID localUuid = localPlayer.getUuid();
+
         glMatrixMode(GL_PROJECTION);
         glLoadIdentity();
         glOrtho(0, width, height, 0, -1, 1);
@@ -182,86 +208,111 @@ public class LWJGLRenderer {
         glMatrixMode(GL_MODELVIEW);
         glLoadIdentity();
 
-        if (localPlayer != null) {
-            // Render tiled space background
-            glEnable(GL_TEXTURE_2D);
-            glBindTexture(GL_TEXTURE_2D, textureId);
-            glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+        // --- 1. FONDO (TILES) ---
+        glEnable(GL_TEXTURE_2D);
+        glBindTexture(GL_TEXTURE_2D, textureId);
+        glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 
-            double tileW = textureWidth;
-            double tileH = textureHeight;
-            double offsetX = worldOffsetX % tileW;
-            double offsetY = worldOffsetY % tileH;
-            if (offsetX < 0) offsetX += tileW;
-            if (offsetY < 0) offsetY += tileH;
+        double tileW = textureWidth;
+        double tileH = textureHeight;
 
-            double camOffsetX = localPlayer.getAccelerationX() * 0.5 + cameraShakeX;
-            double camOffsetY = localPlayer.getAccelerationY() * 0.5 + cameraShakeY;
+        // Usamos el snapshot localX/localY si worldOffset depende del jugador
+        double offsetX = worldOffsetX % tileW;
+        double offsetY = worldOffsetY % tileH;
+        if (offsetX < 0) offsetX += tileW;
+        if (offsetY < 0) offsetY += tileH;
 
-            int startCol = (int) Math.floor((-offsetX + camOffsetX) / tileW) - 1;
-            int startRow = (int) Math.floor((-offsetY + camOffsetY) / tileH) - 1;
-            int endCol = startCol + (int) Math.ceil((width + tileW) / tileW) + 3;
-            int endRow = startRow + (int) Math.ceil((height + tileH) / tileH) + 3;
+        double camOffsetX = localAccelX * 0.5 + cameraShakeX;
+        double camOffsetY = localAccelY * 0.5 + cameraShakeY;
 
-            for (int row = startRow; row <= endRow; row++) {
-                for (int col = startCol; col <= endCol; col++) {
-                    float x1 = (float) (col * tileW - offsetX + camOffsetX);
-                    float y1 = (float) (row * tileH - offsetY + camOffsetY);
-                    float x2 = (float) (x1 + tileW);
-                    float y2 = (float) (y1 + tileH);
+        int startCol = (int) Math.floor((-offsetX + camOffsetX) / tileW) - 1;
+        int startRow = (int) Math.floor((-offsetY + camOffsetY) / tileH) - 1;
+        int endCol = startCol + (int) Math.ceil((width + tileW) / tileW) + 3;
+        int endRow = startRow + (int) Math.ceil((height + tileH) / tileH) + 3;
 
-                    glBegin(GL_QUADS);
-                    glTexCoord2f(0, 0); glVertex2f(x1, y1);
-                    glTexCoord2f(1, 0); glVertex2f(x2, y1);
-                    glTexCoord2f(1, 1); glVertex2f(x2, y2);
-                    glTexCoord2f(0, 1); glVertex2f(x1, y2);
-                    glEnd();
-                }
+        for (int row = startRow; row <= endRow; row++) {
+            for (int col = startCol; col <= endCol; col++) {
+                float x1 = (float) (col * tileW - offsetX + camOffsetX);
+                float y1 = (float) (row * tileH - offsetY + camOffsetY);
+                float x2 = (float) (x1 + tileW);
+                float y2 = (float) (y1 + tileH);
+
+                glBegin(GL_QUADS);
+                glTexCoord2f(0, 0); glVertex2f(x1, y1);
+                glTexCoord2f(1, 0); glVertex2f(x2, y1);
+                glTexCoord2f(1, 1); glVertex2f(x2, y2);
+                glTexCoord2f(0, 1); glVertex2f(x1, y2);
+                glEnd();
             }
-            glDisable(GL_TEXTURE_2D);
+        }
+        glDisable(GL_TEXTURE_2D);
 
-            // Apply camera effects for ship rendering
+        // --- CENTRO DE CÁMARA (Basado en el snapshot) ---
+        double speedCamX = localVelX * 0.15 + cameraShakeX;
+        double speedCamY = localVelY * 0.15 + cameraShakeY;
+        double camCenterX = width / 2.0 + speedCamX;
+        double camCenterY = height / 2.0 + speedCamY;
+        double size = 25.0;
+
+        // --- 2. JUGADOR LOCAL ---
+        glPushMatrix();
+        glTranslated(camCenterX, camCenterY, 0);
+        glRotated(Math.toDegrees(localOrient), 0, 0, 1);
+
+        glBegin(GL_TRIANGLES);
+        glColor3f(0.0f, 1.0f, 0.0f); // Verde
+        glVertex2f((float) -size, (float) -size);
+        glVertex2f((float) -size, (float) size);
+        glVertex2f((float) size, 0);
+        glEnd();
+        glPopMatrix();
+
+        // --- 3. JUGADORES REMOTOS ---
+        for (RemotePlayer remotePlayer : this.remotePlayers.values()) {
+            // Ignorar si el mapa contiene accidentalmente al propio jugador local
+            if (remotePlayer.getUuid().equals(localUuid)) {
+                continue;
+            }
+
             glPushMatrix();
-            double speedCamX = localPlayer.getVelocityX() * 0.15 + cameraShakeX;
-            double speedCamY = localPlayer.getVelocityY() * 0.15 + cameraShakeY;
 
-            glTranslated(width / 2.0 + speedCamX, height / 2.0 + speedCamY, 0);
+            // Posición relativa calculada ESTRICTAMENTE contra el snapshot inmutable
+            double relX = remotePlayer.getX() - localX;
+            double relY = remotePlayer.getY() - localY;
 
-            double rotation = localPlayer.getOrientation();
-            glRotated(Math.toDegrees(rotation), 0, 0, 1);
+            glTranslated(camCenterX + relX, camCenterY + relY, 0);
+            glRotated(Math.toDegrees(remotePlayer.getOrientation()), 0, 0, 1);
 
-            // Draw player ship as triangle (pointing right along +X when orientation is 0)
             glBegin(GL_TRIANGLES);
-            double size = 25.0;
-            glColor3f(0.0f, 1.0f, 0.0f); // Green
+            glColor3f(1.0f, 0.0f, 0.0f); // Rojo
             glVertex2f((float) -size, (float) -size);
             glVertex2f((float) -size, (float) size);
             glVertex2f((float) size, 0);
             glEnd();
 
             glPopMatrix();
-
-            // Draw aim marker
-            if (aimTargetSet) {
-                glLineWidth(2.0f);
-                glColor3f(1.0f, 1.0f, 0.0f); // Yellow
-                glBegin(GL_LINES);
-                glVertex2f((float) (width / 2.0), (float) (height / 2.0));
-                glVertex2f((float) aimTargetX, (float) (height - aimTargetY));
-                glEnd();
-
-                glColor3f(1.0f, 1.0f, 0.0f);
-                int r = 12;
-                glBegin(GL_POLYGON);
-                for (int i = 0; i < 360; i += 10) {
-                    double angle = Math.toRadians(i);
-                    glVertex2f((float) (aimTargetX + r * Math.cos(angle)), (float) (height - aimTargetY + r * Math.sin(angle)));
-                }
-                glEnd();
-            }
         }
 
-        if (debugOverlay && localPlayer != null) {
+        // --- 4. MARCADOR DE APUNTADO ---
+        if (aimTargetSet) {
+            glLineWidth(2.0f);
+            glColor3f(1.0f, 1.0f, 0.0f);
+            glBegin(GL_LINES);
+            glVertex2f((float) (width / 2.0), (float) (height / 2.0));
+            glVertex2f((float) aimTargetX, (float) aimTargetY);
+            glEnd();
+
+            glColor3f(1.0f, 1.0f, 0.0f);
+            int r = 12;
+            glBegin(GL_POLYGON);
+            for (int i = 0; i < 360; i += 10) {
+                double angle = Math.toRadians(i);
+                glVertex2f((float) (aimTargetX + r * Math.cos(angle)), (float) (aimTargetY + r * Math.sin(angle)));
+            }
+            glEnd();
+        }
+
+        if (debugOverlay) {
             renderDebugOverlay();
         }
 
@@ -325,10 +376,6 @@ public class LWJGLRenderer {
         glVertex2f(270, 150);
         glVertex2f(10, 150);
         glEnd();
-    }
-
-    public void setLocalPlayer(ClientPlayer player) {
-        this.localPlayer = player;
     }
 
     public long getWindow() {

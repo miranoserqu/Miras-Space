@@ -1,7 +1,7 @@
 package com.miranoserqu.miras_space.client;
 
 import com.miranoserqu.miras_space.Game;
-import com.miranoserqu.miras_space.Option;
+import com.miranoserqu.miras_space.entity.RemotePlayer;
 import com.miranoserqu.miras_space.event.SubscribeEvent;
 import com.miranoserqu.miras_space.game.Level;
 import com.miranoserqu.miras_space.network.*;
@@ -10,9 +10,7 @@ import de.gurkenlabs.input4j.*;
 import de.gurkenlabs.input4j.components.XInput;
 
 import java.awt.event.KeyEvent;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 
 public class ClientLevel extends Level {
     private static final int WINDOW_WIDTH = 800;
@@ -23,6 +21,7 @@ public class ClientLevel extends Level {
     private LWJGLRenderer renderer;
     private ClientPlayer localPlayer;
     private Collection<InputDevice> controllers;
+    private Map<UUID, RemotePlayer> remotePlayers = new HashMap<>();
     private long lastTime = System.currentTimeMillis();
     private long now = System.currentTimeMillis();
     private double accelMagnitude = 0;
@@ -30,7 +29,7 @@ public class ClientLevel extends Level {
     public ClientLevel(Game game) {
         super(game);
         this.controllers = InputDevices.init().getAll();
-        this.renderer = new LWJGLRenderer(WINDOW_WIDTH, WINDOW_HEIGHT, null);
+        this.renderer = new LWJGLRenderer(WINDOW_WIDTH, WINDOW_HEIGHT, null, this.remotePlayers);
         this.renderer.init();
         game.registerClient(this);
     }
@@ -80,14 +79,31 @@ public class ClientLevel extends Level {
     @SubscribeEvent
     public void onPositionChange(PlayerUpdatePayload payload){
         if (this.localPlayer != null) {
-            this.localPlayer.setX(payload.x);
-            this.localPlayer.setY(payload.y);
-            this.localPlayer.setVelocityX(payload.vX);
-            this.localPlayer.setVelocityY(payload.vY);
-            this.localPlayer.setOrientation(payload.angle);
-            this.localPlayer.setAccelerationX(payload.aX);
-            this.localPlayer.setAccelerationY(payload.aY);
-            accelMagnitude = (float) Math.hypot(payload.aX, payload.aY);
+            if(this.localPlayer.getUuid().equals(payload.playerUUID)) {
+                this.localPlayer.setX(payload.x);
+                this.localPlayer.setY(payload.y);
+                this.localPlayer.setVelocityX(payload.vX);
+                this.localPlayer.setVelocityY(payload.vY);
+                this.localPlayer.setOrientation(payload.angle);
+                this.localPlayer.setAccelerationX(payload.aX);
+                this.localPlayer.setAccelerationY(payload.aY);
+                accelMagnitude = (float) Math.hypot(payload.aX, payload.aY);
+            } else {
+                if(Math.hypot(localPlayer.getX() - payload.x, localPlayer.getY() - payload.y) < 20000){
+                    remotePlayers.merge(payload.playerUUID, new RemotePlayer(payload.x, payload.y, payload.angle, payload.vX, payload.vY, payload.playerUUID, payload.playerUUID.toString()), (old, n) -> {
+                        old.setX(payload.x);
+                        old.setY(payload.y);
+                        old.setVelocityX(payload.vX);
+                        old.setVelocityY(payload.vY);
+                        old.setOrientation(payload.angle);
+                        old.setAccelerationX(payload.aX);
+                        old.setAccelerationY(payload.aY);
+                        return old;
+                    });
+                } else {
+                    remotePlayers.remove(payload.playerUUID);
+                }
+            }
         }
     }
 
@@ -110,7 +126,7 @@ public class ClientLevel extends Level {
 
             controller.poll();
 
-            GamepadInputPayload payload = getGamepadInputPayload(controller);
+            GamepadInputPayload payload = getGamepadInputPayload(this.localPlayer, controller);
             this.game.getServerBus().post(payload);
             return;
         }
@@ -136,7 +152,7 @@ public class ClientLevel extends Level {
         this.game.getServerBus().post(inputPayload);
     }
 
-    private static GamepadInputPayload getGamepadInputPayload(InputDevice controller) {
+    private static GamepadInputPayload getGamepadInputPayload(ClientPlayer localPlayer, InputDevice controller) {
         float xAxis = 0;
         float yAxis = 0;
         boolean a = false, b = false, x = false, y = false;
@@ -161,7 +177,7 @@ public class ClientLevel extends Level {
             else if(component.getId().equals(XInput.DPAD_DOWN)) down = component.getData() != 0;
         }
 
-        return new GamepadInputPayload(xAxis, yAxis, a, b, x, y, lt, lb, rt, rb, start, right, left, up, down);
+        return new GamepadInputPayload(localPlayer.getUuid(), xAxis, yAxis, a, b, x, y, lt, lb, rt, rb, start, right, left, up, down);
     }
 
     private List<Integer> getKeyboardInput() {

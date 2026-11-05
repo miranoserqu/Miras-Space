@@ -3,9 +3,11 @@ package com.miranoserqu.miras_space.network;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.UUID;
 
 public class GamepadInputPayload implements Payload {
 
+    public UUID playerUUID;
     public float xAxis;
     public float yAxis;
     public boolean a;
@@ -27,7 +29,8 @@ public class GamepadInputPayload implements Payload {
 
     }
 
-    public GamepadInputPayload(float xAxis, float yAxis, boolean a, boolean b, boolean x, boolean y, boolean lt, boolean lb, boolean rt, boolean rb, boolean start, boolean right, boolean left, boolean up, boolean down){
+    public GamepadInputPayload(UUID playerUUID, float xAxis, float yAxis, boolean a, boolean b, boolean x, boolean y, boolean lt, boolean lb, boolean rt, boolean rb, boolean start, boolean right, boolean left, boolean up, boolean down){
+        this.playerUUID = playerUUID;
         this.xAxis = xAxis;
         this.yAxis = yAxis;
         this.a = a;
@@ -48,6 +51,8 @@ public class GamepadInputPayload implements Payload {
     @Override
     public void serialize(DataOutputStream buf) throws IOException {
         buf.writeInt(ID);
+        buf.writeLong(playerUUID.getMostSignificantBits());
+        buf.writeLong(playerUUID.getLeastSignificantBits());
         buf.writeFloat(xAxis);
         buf.writeFloat(yAxis);
         buf.writeBoolean(a);
@@ -67,6 +72,9 @@ public class GamepadInputPayload implements Payload {
 
     @Override
     public void deserialize(DataInputStream buf) throws IOException {
+        long most = buf.readLong();
+        long least = buf.readLong();
+        this.playerUUID = new UUID(most, least);
         this.xAxis = buf.readFloat();
         this.yAxis = buf.readFloat();
         this.a = buf.readBoolean();

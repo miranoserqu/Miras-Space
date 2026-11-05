@@ -23,10 +23,13 @@ public class ClientMain {
         System.out.print("Insert port: ");
         int port = scanner.nextInt();
 
+        System.out.print("Insert name: ");
+        String name = scanner.next();
+
         // 3. Crear el juego y las instancias locales
         Game game = new Game();
         ClientLevel client = new ClientLevel(game);
-        ClientPlayer clientPlayer = new ClientPlayer(UUID.randomUUID(), "miranoserqu", client);
+        ClientPlayer clientPlayer = new ClientPlayer(UUID.randomUUID(), name, client);
         client.setLocalPlayer(clientPlayer);
 
         // 4. Instanciar la red local del cliente (escucha en un puerto aleatorio local para recibir callbacks)
