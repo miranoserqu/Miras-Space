@@ -54,18 +54,21 @@ public class ClientPeerLevel extends Level {
     private void listenToServer() {
         try {
             while (isRunning) {
-                DataInputStream peekDis = new DataInputStream(in);
-                int type = peekDis.readInt();;
+                int length = in.readInt();
+                byte[] data = new byte[length];
+                in.readFully(data);
+                DataInputStream packetDis = new DataInputStream(new ByteArrayInputStream(data));
+                int type = packetDis.readInt();
 
                 switch (type) {
                     case InputRequestPayload.ID -> {
                         InputRequestPayload payload = new InputRequestPayload();
-                        payload.deserialize(peekDis);
+                        payload.deserialize(packetDis);
                         game.getClientBus().post(payload);
                     }
                     case PlayerUpdatePayload.ID -> {
                         PlayerUpdatePayload payload = new PlayerUpdatePayload();
-                        payload.deserialize(peekDis);
+                        payload.deserialize(packetDis);
                         game.getClientBus().post(payload);
                     }
                 }

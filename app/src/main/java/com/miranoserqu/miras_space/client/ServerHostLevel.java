@@ -130,13 +130,16 @@ public class ServerHostLevel extends Level {
                 // 2. Bucle de escucha continuo
                 while (isRunning) {
                     try {
-                        DataInputStream peekDis = new DataInputStream(in);
-                        int type = peekDis.readInt();
+                        int length = in.readInt();
+                        byte[] data = new byte[length];
+                        in.readFully(data);
+                        DataInputStream packetDis = new DataInputStream(new ByteArrayInputStream(data));
+                        int type = packetDis.readInt();
 
                         switch(type) {
                             case InputPayload.ID -> {
                                 InputPayload payload = new InputPayload();
-                                payload.deserialize(peekDis);
+                                payload.deserialize(packetDis);
 
                                 // IMPORTANTE: Si el payload no tiene UUID propio,
                                 // debes inyectarle el de esta conexión (this.clientId) antes de publicarlo.
@@ -146,7 +149,7 @@ public class ServerHostLevel extends Level {
                             }
                             case GamepadInputPayload.ID -> {
                                 GamepadInputPayload payload = new GamepadInputPayload();
-                                payload.deserialize(peekDis);
+                                payload.deserialize(packetDis);
                                 game.getServerBus().post(payload);
                             }
                         }
