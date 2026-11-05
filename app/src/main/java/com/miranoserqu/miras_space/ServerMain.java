@@ -1,6 +1,6 @@
 package com.miranoserqu.miras_space;
 
-import com.miranoserqu.miras_space.client.HttpsClientLevel;
+import com.miranoserqu.miras_space.client.ServerHostLevel;
 import com.miranoserqu.miras_space.server.ServerLevel;
 
 import java.io.IOException;
@@ -14,8 +14,11 @@ public class ServerMain {
         ServerLevel server = new ServerLevel(game);
         System.out.print("Insert port: ");
         int port = scanner.nextInt();
+        ServerHostLevel clientHandler = new ServerHostLevel(game, port, server);
 
-        HttpsClientLevel clientHandler = new HttpsClientLevel(game, port, server);
+        game.registerServer(server);
+        game.registerClient(clientHandler);
+
         server.start();
         clientHandler.start();
     }

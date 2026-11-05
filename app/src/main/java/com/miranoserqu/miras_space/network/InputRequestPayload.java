@@ -15,6 +15,5 @@ public class InputRequestPayload implements Payload {
 
     @Override
     public void deserialize(DataInputStream buf) throws IOException {
-        if(buf.readInt() != ID) throw new RuntimeException("payload type does not match");
     }
 }

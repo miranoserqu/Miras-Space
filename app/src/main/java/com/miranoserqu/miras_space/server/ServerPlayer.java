@@ -101,7 +101,7 @@ public class ServerPlayer extends Player {
                     updateOrientation(payload.targetAngle);
 
                     PlayerUpdatePayload updatePayload = new PlayerUpdatePayload(this.uuid, this.x, this.y, this.orientation, this.velocityX, this.velocityY, this.accelerationX, this.accelerationY);
-                    this.level.getPlayer(this.uuid).level.getGame().getClientBus().post(updatePayload);
+                    this.level.getGame().getClientBus().post(updatePayload);
 
                     return;
                 }
@@ -133,7 +133,7 @@ public class ServerPlayer extends Player {
                 updateOrientation(Math.atan2(-movementY, -movementX));
 
                 PlayerUpdatePayload updatePayload = new PlayerUpdatePayload(this.uuid, this.x, this.y, this.orientation, this.velocityX, this.velocityY, this.accelerationX, this.accelerationY);
-                this.level.getPlayer(this.uuid).level.getGame().getClientBus().post(updatePayload);
+                this.level.getGame().getClientBus().post(updatePayload);
 
                 return;
             }
@@ -216,7 +216,7 @@ public class ServerPlayer extends Player {
         updateOrientation(payload.targetAngle);
 
         PlayerUpdatePayload updatePayload = new PlayerUpdatePayload(this.uuid, this.x, this.y, this.orientation, this.velocityX, this.velocityY, this.accelerationX, this.accelerationY);
-        this.level.getPlayer(this.uuid).level.getGame().getClientBus().post(updatePayload);
+        this.level.getGame().getClientBus().post(updatePayload);
     }
 
     @SubscribeEvent
@@ -229,7 +229,7 @@ public class ServerPlayer extends Player {
                 updateOrientation(0);
 
                 PlayerUpdatePayload updatePayload = new PlayerUpdatePayload(this.uuid, this.x, this.y, this.orientation, this.velocityX, this.velocityY, this.accelerationX, this.accelerationY);
-                this.level.getPlayer(this.uuid).level.getGame().getClientBus().post(updatePayload);
+                this.level.getGame().getClientBus().post(updatePayload);
 
                 return;
             }
@@ -261,7 +261,7 @@ public class ServerPlayer extends Player {
             updateOrientation(Math.atan2(-movementY, -movementX));
 
             PlayerUpdatePayload updatePayload = new PlayerUpdatePayload(this.uuid, this.x, this.y, this.orientation, this.velocityX, this.velocityY, this.accelerationX, this.accelerationY);
-            this.level.getPlayer(this.uuid).level.getGame().getClientBus().post(updatePayload);
+            this.level.getGame().getClientBus().post(updatePayload);
 
             return;
         }
@@ -324,12 +324,12 @@ public class ServerPlayer extends Player {
         updateOrientation(accelAngle);
 
         PlayerUpdatePayload updatePayload = new PlayerUpdatePayload(this.uuid, this.x, this.y, this.orientation, this.velocityX, this.velocityY, this.accelerationX, this.accelerationY);
-        this.level.getPlayer(this.uuid).level.getGame().getClientBus().post(updatePayload);
+        this.level.getGame().getClientBus().post(updatePayload);
     }
 
     public void tick(){
         InputRequestPayload payload = new InputRequestPayload();
-        this.level.getPlayer(this.uuid).level.getGame().getClientBus().post(payload);
+        this.level.getGame().getClientBus().post(payload);
     }
 
     /**

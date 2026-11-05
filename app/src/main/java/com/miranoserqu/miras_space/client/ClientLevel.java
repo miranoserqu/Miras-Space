@@ -32,7 +32,7 @@ public class ClientLevel extends Level {
         this.controllers = InputDevices.init().getAll();
         this.renderer = new LWJGLRenderer(WINDOW_WIDTH, WINDOW_HEIGHT, null);
         this.renderer.init();
-        game.registerServer(this);
+        game.registerClient(this);
     }
 
     public void setLocalPlayer(ClientPlayer localPlayer){

@@ -67,7 +67,6 @@ public class GamepadInputPayload implements Payload {
 
     @Override
     public void deserialize(DataInputStream buf) throws IOException {
-        if(buf.readInt() != ID) throw new RuntimeException("payload type does not match");
         this.xAxis = buf.readFloat();
         this.yAxis = buf.readFloat();
         this.a = buf.readBoolean();

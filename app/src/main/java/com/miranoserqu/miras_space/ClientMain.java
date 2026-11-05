@@ -2,8 +2,7 @@ package com.miranoserqu.miras_space;
 
 import com.miranoserqu.miras_space.client.ClientLevel;
 import com.miranoserqu.miras_space.client.ClientPlayer;
-import com.miranoserqu.miras_space.game.Level;
-import com.miranoserqu.miras_space.server.HttpsServerLevel;
+import com.miranoserqu.miras_space.server.ClientPeerLevel;
 import com.sun.net.httpserver.HttpServer;
 
 import java.io.IOException;
@@ -28,6 +27,7 @@ public class ClientMain {
         Game game = new Game();
         ClientLevel client = new ClientLevel(game);
         ClientPlayer clientPlayer = new ClientPlayer(UUID.randomUUID(), "miranoserqu", client);
+        client.setLocalPlayer(clientPlayer);
 
         // 4. Instanciar la red local del cliente (escucha en un puerto aleatorio local para recibir callbacks)
         InetSocketAddress address = new InetSocketAddress("127.0.0.1", 0);
@@ -35,11 +35,11 @@ public class ClientMain {
 
         // Pasamos la URL del servidor central remoto para que el cliente se registre allí
         String remoteServerUrl = String.format("http://%s:%d", host, port);
-        HttpsServerLevel serverBridge = new HttpsServerLevel(httpServer, clientPlayer, game, remoteServerUrl);
+        ClientPeerLevel serverBridge = new ClientPeerLevel(clientPlayer, game, host, port);
 
         // ¡IMPORTANTE! Iniciamos el servidor HTTP del cliente para que pueda escuchar
         httpServer.start();
-        System.out.println("[CLIENTE] Servidor local de callbacks iniciado en: " + serverBridge.getServerUrl());
+        System.out.println("[CLIENTE] Servidor local de callbacks iniciado en: " + remoteServerUrl);
 
         client.setLocalPlayer(clientPlayer);
         client.start();

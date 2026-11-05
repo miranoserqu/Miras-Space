@@ -5,6 +5,7 @@ import com.miranoserqu.miras_space.game.Player;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -47,8 +48,8 @@ public class InputPayload implements Payload {
 
     @Override
     public void deserialize(DataInputStream buf) throws IOException {
-        if(buf.readInt() != ID) throw new RuntimeException("payload type does not match");
         this.invertControls = buf.readBoolean();
+        this.inputs = new ArrayList<>();
         for(int i = 0; i < buf.readInt(); i++){
             this.inputs.add(buf.readInt());
         }

@@ -10,14 +10,7 @@ public class EventBus {
 
     private final Map<Class<?>, List<Subscriber>> subscribers = new HashMap<>();
 
-    private static class Subscriber {
-        final Object instance;
-        final Method method;
-
-        public Subscriber(Object instance, Method method){
-            this.instance = instance;
-            this.method = method;
-        }
+    private record Subscriber(Object instance, Method method) {
     }
 
     public void register(){
