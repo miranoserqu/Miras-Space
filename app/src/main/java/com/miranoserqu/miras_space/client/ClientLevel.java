@@ -1,6 +1,6 @@
 package com.miranoserqu.miras_space.client;
 
-import com.miranoserqu.miras_space.Game;
+import com.miranoserqu.miras_space.game.Game;
 import com.miranoserqu.miras_space.entity.RemotePlayer;
 import com.miranoserqu.miras_space.event.SubscribeEvent;
 import com.miranoserqu.miras_space.game.Level;
@@ -26,18 +26,18 @@ public class ClientLevel extends Level {
     private long now = System.currentTimeMillis();
     private double accelMagnitude = 0;
 
-    public ClientLevel(Game game) {
-        super(game);
+    public ClientLevel() {
+        super();
         this.controllers = InputDevices.init().getAll();
         this.renderer = new LWJGLRenderer(WINDOW_WIDTH, WINDOW_HEIGHT, null, this.remotePlayers);
         this.renderer.init();
-        game.registerClient(this);
+        Game.getInstance().registerClient(this);
     }
 
     public void setLocalPlayer(ClientPlayer localPlayer){
         this.localPlayer = localPlayer;
         this.renderer.setLocalPlayer(localPlayer);
-        this.game.getClientBus().register(localPlayer);
+        Game.getInstance().getClientBus().register(localPlayer);
         localPlayer.setLevel(this);
     }
 
@@ -90,7 +90,7 @@ public class ClientLevel extends Level {
                 accelMagnitude = (float) Math.hypot(payload.aX, payload.aY);
             } else {
                 if(Math.hypot(localPlayer.getX() - payload.x, localPlayer.getY() - payload.y) < 20000){
-                    remotePlayers.merge(payload.playerUUID, new RemotePlayer(payload.x, payload.y, payload.angle, payload.vX, payload.vY, payload.playerUUID, payload.playerUUID.toString()), (old, n) -> {
+                    remotePlayers.merge(payload.playerUUID, new RemotePlayer(payload.x, payload.y, payload.angle, payload.vX, payload.vY, payload.playerUUID, payload.playerUUID.toString()), (old, _) -> {
                         old.setX(payload.x);
                         old.setY(payload.y);
                         old.setVelocityX(payload.vX);
@@ -111,6 +111,10 @@ public class ClientLevel extends Level {
     public void onInputRequest(InputRequestPayload inputRequestPayload){
         if (localPlayer == null) return;
 
+        if(!this.localPlayer.getUuid().equals(inputRequestPayload.playerUUID)){
+            return;
+        }
+
         boolean useGamepad = renderer.isUseGamepad();
 
         if (useGamepad) {
@@ -127,10 +131,15 @@ public class ClientLevel extends Level {
             controller.poll();
 
             GamepadInputPayload payload = getGamepadInputPayload(this.localPlayer, controller);
-            this.game.getServerBus().post(payload);
+            Game.getInstance().getServerBus().post(payload);
             return;
         }
 
+        InputPayload inputPayload = getInputPayload();
+        Game.getInstance().getServerBus().post(inputPayload);
+    }
+
+    private InputPayload getInputPayload() {
         List<Integer> pressedKeys = getKeyboardInput();
 
         double shipCenterX = renderer.getWindowWidth() / 2.0;
@@ -149,7 +158,7 @@ public class ClientLevel extends Level {
                 this.localPlayer.getUuid(),
                 renderer.isInvertControls()
         );
-        this.game.getServerBus().post(inputPayload);
+        return inputPayload;
     }
 
     private static GamepadInputPayload getGamepadInputPayload(ClientPlayer localPlayer, InputDevice controller) {

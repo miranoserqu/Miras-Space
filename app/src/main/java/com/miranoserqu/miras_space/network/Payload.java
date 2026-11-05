@@ -5,14 +5,23 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Represents a data packet sent between client and server.
  * Contains information about player actions and state updates.
  */
-public interface Payload {
-    void serialize(DataOutputStream buf) throws IOException;
-    void deserialize(DataInputStream buf) throws IOException;
+public abstract class Payload {
+
+    public UUID playerUUID;
+
+    public Payload(){
+
+    }
+
+    public abstract void serialize(DataOutputStream buf) throws IOException;
+    public abstract void deserialize(DataInputStream buf) throws IOException;
+
 }
 
 

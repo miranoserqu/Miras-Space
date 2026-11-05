@@ -1,9 +1,6 @@
-package com.miranoserqu.miras_space;
+package com.miranoserqu.miras_space.game;
 
-import com.miranoserqu.miras_space.client.ClientLevel;
 import com.miranoserqu.miras_space.event.EventBus;
-import com.miranoserqu.miras_space.game.Level;
-import com.miranoserqu.miras_space.server.ServerLevel;
 
 public class Game {
 
@@ -12,9 +9,15 @@ public class Game {
     private Level localClientLevel;
     private Level localServerLevel;
 
-    public Game(){
+    private static final Game GAME = new Game();
+
+    private Game(){
         this.serverBus = new EventBus();
         this.clientBus = new EventBus();
+    }
+
+    public static Game getInstance(){
+        return GAME;
     }
 
     public EventBus getServerBus() {

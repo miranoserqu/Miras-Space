@@ -1,6 +1,6 @@
 package com.miranoserqu.miras_space.client;
 
-import com.miranoserqu.miras_space.Game;
+import com.miranoserqu.miras_space.game.Game;
 import com.miranoserqu.miras_space.event.SubscribeEvent;
 import com.miranoserqu.miras_space.game.Level;
 import com.miranoserqu.miras_space.network.*;
@@ -24,14 +24,14 @@ public class ServerHostLevel extends Level {
     // Almacena las conexiones TCP activas de cada cliente
     private final Map<UUID, ClientConnection> activeClients = new ConcurrentHashMap<>();
 
-    public ServerHostLevel(Game game, int port, ServerLevel serverLevel) {
-        super(game);
+    public ServerHostLevel(int port, ServerLevel serverLevel) {
+        super();
         this.serverLevel = serverLevel;
         this.port = port;
         this.isRunning = true;
 
-        game.getServerBus().register(this);
-        game.registerClient(this); // Asumiendo que esta es tu lógica interna
+        Game.getInstance().getServerBus().register(this);
+        Game.getInstance().registerClient(this); // Asumiendo que esta es tu lógica interna
     }
 
     public void start() {
@@ -141,12 +141,12 @@ public class ServerHostLevel extends Level {
                             case InputPayload.ID -> {
                                 InputPayload payload = new InputPayload();
                                 payload.deserialize(peekDis);
-                                game.getServerBus().post(payload);
+                                Game.getInstance().getServerBus().post(payload);
                             }
                             case GamepadInputPayload.ID -> {
                                 GamepadInputPayload payload = new GamepadInputPayload();
                                 payload.deserialize(peekDis);
-                                game.getServerBus().post(payload);
+                                Game.getInstance().getServerBus().post(payload);
                             }
                         }
                     } catch (Exception e) {

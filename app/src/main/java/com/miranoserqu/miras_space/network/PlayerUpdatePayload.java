@@ -5,9 +5,8 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.UUID;
 
-public class PlayerUpdatePayload implements Payload {
+public class PlayerUpdatePayload extends Payload {
 
-    public UUID playerUUID;
     public double x;
     public double y;
     public double angle;

@@ -9,13 +9,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-public class InputPayload implements Payload {
+public class InputPayload extends Payload {
 
     public boolean invertControls;
     public List<Integer> inputs;
     public double mouseX;
     public double mouseY;
-    public UUID playerUUID;
     public double targetAngle;
     public static final int ID = 0;
 
@@ -62,4 +61,5 @@ public class InputPayload implements Payload {
         long least = buf.readLong();
         this.playerUUID = new UUID(most, least);
     }
+
 }

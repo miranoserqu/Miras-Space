@@ -1,6 +1,7 @@
 package com.miranoserqu.miras_space.server;
 
 import com.miranoserqu.miras_space.event.SubscribeEvent;
+import com.miranoserqu.miras_space.game.Game;
 import com.miranoserqu.miras_space.game.Player;
 import com.miranoserqu.miras_space.network.GamepadInputPayload;
 import com.miranoserqu.miras_space.network.InputPayload;
@@ -105,7 +106,7 @@ public class ServerPlayer extends Player {
                     updateOrientation(payload.targetAngle);
 
                     PlayerUpdatePayload updatePayload = new PlayerUpdatePayload(this.uuid, this.x, this.y, this.orientation, this.velocityX, this.velocityY, this.accelerationX, this.accelerationY);
-                    this.level.getGame().getClientBus().post(updatePayload);
+                    Game.getInstance().getClientBus().post(updatePayload);
 
                     return;
                 }
@@ -137,7 +138,7 @@ public class ServerPlayer extends Player {
                 updateOrientation(Math.atan2(-movementY, -movementX));
 
                 PlayerUpdatePayload updatePayload = new PlayerUpdatePayload(this.uuid, this.x, this.y, this.orientation, this.velocityX, this.velocityY, this.accelerationX, this.accelerationY);
-                this.level.getGame().getClientBus().post(updatePayload);
+                Game.getInstance().getClientBus().post(updatePayload);
 
                 return;
             }
@@ -220,7 +221,7 @@ public class ServerPlayer extends Player {
         updateOrientation(payload.targetAngle);
 
         PlayerUpdatePayload updatePayload = new PlayerUpdatePayload(this.uuid, this.x, this.y, this.orientation, this.velocityX, this.velocityY, this.accelerationX, this.accelerationY);
-        this.level.getGame().getClientBus().post(updatePayload);
+        Game.getInstance().getClientBus().post(updatePayload);
     }
 
     @SubscribeEvent
@@ -237,7 +238,7 @@ public class ServerPlayer extends Player {
                 updateOrientation(0);
 
                 PlayerUpdatePayload updatePayload = new PlayerUpdatePayload(this.uuid, this.x, this.y, this.orientation, this.velocityX, this.velocityY, this.accelerationX, this.accelerationY);
-                this.level.getGame().getClientBus().post(updatePayload);
+                Game.getInstance().getClientBus().post(updatePayload);
 
                 return;
             }
@@ -269,7 +270,7 @@ public class ServerPlayer extends Player {
             updateOrientation(Math.atan2(-movementY, -movementX));
 
             PlayerUpdatePayload updatePayload = new PlayerUpdatePayload(this.uuid, this.x, this.y, this.orientation, this.velocityX, this.velocityY, this.accelerationX, this.accelerationY);
-            this.level.getGame().getClientBus().post(updatePayload);
+            Game.getInstance().getClientBus().post(updatePayload);
 
             return;
         }
@@ -332,21 +333,18 @@ public class ServerPlayer extends Player {
         updateOrientation(accelAngle);
 
         PlayerUpdatePayload updatePayload = new PlayerUpdatePayload(this.uuid, this.x, this.y, this.orientation, this.velocityX, this.velocityY, this.accelerationX, this.accelerationY);
-        this.level.getGame().getClientBus().post(updatePayload);
+        Game.getInstance().getClientBus().post(updatePayload);
     }
 
     public void tick(){
-        InputRequestPayload payload = new InputRequestPayload();
-        this.level.getGame().getClientBus().post(payload);
+        InputRequestPayload payload = new InputRequestPayload(this.uuid);
+        Game.getInstance().getClientBus().post(payload);
     }
 
     /**
      * Extracts the forward/backward input axis (-1, 0, 1) from the list of pressed keys.
      * Handles W/S and UP/DOWN keys.
      */
-    private static int getForwardInput(List<Integer> pressedKeys) {
-        return getForwardInput(pressedKeys, false);
-    }
     private static int getForwardInput(List<Integer> pressedKeys, boolean invert) {
         for (int kc : pressedKeys) {
             if (kc == KeyEvent.VK_W || kc == KeyEvent.VK_UP) {

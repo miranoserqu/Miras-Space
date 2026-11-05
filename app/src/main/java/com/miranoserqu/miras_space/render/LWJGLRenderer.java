@@ -265,7 +265,6 @@ public class LWJGLRenderer {
         glVertex2f((float) -size, (float) size);
         glVertex2f((float) size, 0);
         glEnd();
-        glPopMatrix();
 
         // --- 3. JUGADORES REMOTOS ---
         for (RemotePlayer remotePlayer : this.remotePlayers.values()) {
@@ -274,24 +273,20 @@ public class LWJGLRenderer {
                 continue;
             }
 
-            glPushMatrix();
-
             // Posición relativa calculada ESTRICTAMENTE contra el snapshot inmutable
             double relX = remotePlayer.getX() - localX;
             double relY = remotePlayer.getY() - localY;
 
-            glTranslated(camCenterX + relX, camCenterY + relY, 0);
-            glRotated(Math.toDegrees(remotePlayer.getOrientation()), 0, 0, 1);
-
             glBegin(GL_TRIANGLES);
             glColor3f(1.0f, 0.0f, 0.0f); // Rojo
-            glVertex2f((float) -size, (float) -size);
-            glVertex2f((float) -size, (float) size);
-            glVertex2f((float) size, 0);
+            glVertex2f((float) (relX - size), (float) (relY - size));
+            glVertex2f((float) (relX - size), (float) (relY + size));
+            glVertex2f((float) (relX + size), (float) relY);
             glEnd();
 
-            glPopMatrix();
         }
+
+        glPopMatrix();
 
         // --- 4. MARCADOR DE APUNTADO ---
         if (aimTargetSet) {

@@ -1,10 +1,9 @@
 package com.miranoserqu.miras_space.server;
 
-import com.miranoserqu.miras_space.Game;
+import com.miranoserqu.miras_space.game.Game;
 import com.miranoserqu.miras_space.Option;
 import com.miranoserqu.miras_space.entity.Entity;
 import com.miranoserqu.miras_space.game.Level;
-import com.miranoserqu.miras_space.game.Player;
 
 import java.util.*;
 
@@ -31,14 +30,14 @@ public class ServerLevel extends Level {
     /**
      * Creates a new game server.
      */
-    public ServerLevel(Game game) {
-        super(game);
+    public ServerLevel() {
+        super();
         this.boundaryX = Option.WEIGHT_RESOLUTION.getValue();
         this.boundaryY = Option.HEIGHT_RESOLUTION.getValue();
         this.players = new HashMap<>();
         this.entities = new HashMap<>();
         this.running = false;
-        game.registerServer(this);
+        Game.getInstance().registerServer(this);
     }
 
     /**
@@ -48,7 +47,7 @@ public class ServerLevel extends Level {
      */
     public void addPlayer(ServerPlayer serverPlayer) {
         players.put(serverPlayer.getUuid(), serverPlayer);
-        this.game.getServerBus().register(serverPlayer);
+        Game.getInstance().getServerBus().register(serverPlayer);
         serverPlayer.setLevel(this);
     }
 
@@ -135,8 +134,6 @@ public class ServerLevel extends Level {
     public static int getTicksPerSecond() {
         return TICKS_PER_SECOND;
     }
-
-
 
     @Override
     public double getBoundaryX(){

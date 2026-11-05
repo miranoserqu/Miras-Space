@@ -1,6 +1,6 @@
 package com.miranoserqu.miras_space.server;
 
-import com.miranoserqu.miras_space.Game;
+import com.miranoserqu.miras_space.game.Game;
 import com.miranoserqu.miras_space.client.ClientPlayer;
 import com.miranoserqu.miras_space.event.SubscribeEvent;
 import com.miranoserqu.miras_space.game.Level;
@@ -17,13 +17,13 @@ public class ClientPeerLevel extends Level {
     private DataOutputStream out;
     private boolean isRunning;
 
-    public ClientPeerLevel(ClientPlayer player, Game game, String serverHost, int serverPort) throws IOException {
-        super(game);
+    public ClientPeerLevel(ClientPlayer player, String serverHost, int serverPort) throws IOException {
+        super();
         this.player = player;
         this.isRunning = true;
 
-        game.getClientBus().register(this);
-        game.registerServer(this); // Asumiendo que esta es tu lógica interna
+        Game.getInstance().getClientBus().register(this);
+        Game.getInstance().registerServer(this); // Asumiendo que esta es tu lógica interna
 
         connectToServer(serverHost, serverPort);
     }
@@ -64,12 +64,12 @@ public class ClientPeerLevel extends Level {
                     case InputRequestPayload.ID -> {
                         InputRequestPayload payload = new InputRequestPayload();
                         payload.deserialize(peekDis);
-                        game.getClientBus().post(payload);
+                        Game.getInstance().getClientBus().post(payload);
                     }
                     case PlayerUpdatePayload.ID -> {
                         PlayerUpdatePayload payload = new PlayerUpdatePayload();
                         payload.deserialize(peekDis);
-                        game.getClientBus().post(payload);
+                        Game.getInstance().getClientBus().post(payload);
                     }
                 }
             }

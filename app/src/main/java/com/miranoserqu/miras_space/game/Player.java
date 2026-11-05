@@ -1,6 +1,5 @@
 package com.miranoserqu.miras_space.game;
 
-import com.miranoserqu.miras_space.Game;
 import com.miranoserqu.miras_space.entity.Entity;
 import org.lwjgl.opengl.GL11;
 

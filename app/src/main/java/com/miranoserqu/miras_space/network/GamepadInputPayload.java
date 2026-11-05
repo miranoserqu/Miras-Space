@@ -5,9 +5,8 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.UUID;
 
-public class GamepadInputPayload implements Payload {
+public class GamepadInputPayload extends Payload {
 
-    public UUID playerUUID;
     public float xAxis;
     public float yAxis;
     public boolean a;
