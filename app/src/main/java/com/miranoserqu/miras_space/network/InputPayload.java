@@ -42,6 +42,7 @@ public class InputPayload implements Payload {
         }
         buf.writeDouble(mouseX);
         buf.writeDouble(mouseY);
+        buf.writeDouble(targetAngle);
         buf.writeLong(playerUUID.getMostSignificantBits());
         buf.writeLong(playerUUID.getLeastSignificantBits());
     }
@@ -50,11 +51,13 @@ public class InputPayload implements Payload {
     public void deserialize(DataInputStream buf) throws IOException {
         this.invertControls = buf.readBoolean();
         this.inputs = new ArrayList<>();
-        for(int i = 0; i < buf.readInt(); i++){
+        int length = buf.readInt();
+        for(int i = 0; i < length; i++){
             this.inputs.add(buf.readInt());
         }
         this.mouseX = buf.readDouble();
         this.mouseY = buf.readDouble();
+        this.targetAngle = buf.readDouble();
         long most = buf.readLong();
         long least = buf.readLong();
         this.playerUUID = new UUID(most, least);
