@@ -6,6 +6,8 @@ import com.miranoserqu.miras_space.game.Game;
 import com.miranoserqu.miras_space.server.ServerLevel;
 import com.miranoserqu.miras_space.server.ServerPlayer;
 
+import java.io.IOException;
+import java.util.Scanner;
 import java.util.UUID;
 
 import static de.gurkenlabs.input4j.InputDevices.init;
@@ -16,8 +18,18 @@ import static de.gurkenlabs.input4j.InputDevices.init;
  */
 public class Main {
 
-    public static void main(String[] args) {
-        // Start the game client which handles everything
+    public static void main(String[] args) throws IOException, InterruptedException {
+        Scanner scanner = new Scanner(System.in);
+        System.out.println("Insert operation");
+        String op = scanner.next();
+        switch(op){
+            case "runClient" -> ClientMain.main(args);
+            case "runServer" -> ServerMain.main(args);
+            case "runNormal" -> normal();
+        }
+    }
+
+    public static void normal(){
         Game game = Game.getInstance();
         ClientLevel client = new ClientLevel();
         ServerLevel server = new ServerLevel();
@@ -28,4 +40,5 @@ public class Main {
         server.start();
         client.start();
     }
+
 }
