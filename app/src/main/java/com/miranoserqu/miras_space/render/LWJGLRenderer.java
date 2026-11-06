@@ -266,27 +266,34 @@ public class LWJGLRenderer {
         glVertex2f((float) size, 0);
         glEnd();
 
+        glPopMatrix(); // Cerrar el aislamiento del jugador local AQUÍ
+
         // --- 3. JUGADORES REMOTOS ---
         for (RemotePlayer remotePlayer : this.remotePlayers.values()) {
-            // Ignorar si el mapa contiene accidentalmente al propio jugador local
             if (remotePlayer.getUuid().equals(localUuid)) {
                 continue;
             }
 
-            // Posición relativa calculada ESTRICTAMENTE contra el snapshot inmutable
             double relX = remotePlayer.getX() - localX;
             double relY = remotePlayer.getY() - localY;
 
+            glPushMatrix(); // Aislamos matriz para este jugador remoto
+
+            // 1. Trasladar al punto en pantalla correspondiente
+            glTranslated(camCenterX + relX, camCenterY + relY, 0);
+
+            // 2. Aplicar la orientación propia del jugador remoto en el eje Z
+            glRotated(Math.toDegrees(remotePlayer.getOrientation()), 0, 0, 1);
+
             glBegin(GL_TRIANGLES);
             glColor3f(1.0f, 0.0f, 0.0f); // Rojo
-            glVertex2f((float) (relX - size), (float) (relY - size));
-            glVertex2f((float) (relX - size), (float) (relY + size));
-            glVertex2f((float) (relX + size), (float) relY);
+            glVertex2f((float) -size, (float) -size);
+            glVertex2f((float) -size, (float) size);
+            glVertex2f((float) size, 0);
             glEnd();
 
+            glPopMatrix(); // Deshacer traslación y rotación para el siguiente jugador remoto
         }
-
-        glPopMatrix();
 
         // --- 4. MARCADOR DE APUNTADO ---
         if (aimTargetSet) {

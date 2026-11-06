@@ -23,54 +23,21 @@ import static com.miranoserqu.miras_space.tag.AttributeModifier.ModifierType.*;
  */
 public class ServerPlayer extends Player {
 
-    public static final double BASE_MAX_SPEED = 20; // 8 px/s max
-    public static final double BASE_FORWARD_ACCELERATION = 0.5;        // ~2.4 px/s², reaches max in ~3.3s
+    public static final double BASE_MAX_SPEED = 20;
+    public static final double BASE_FORWARD_ACCELERATION = 0.5;
     public static final double BASE_REVERSE_ACCELERATION = 0.2;
     public static final double BASE_LATERAL_SPEED = 0.04;
     public static final double BASE_ROTATION_SPEED = 10;
 
     private final ServerLevel level;
 
-    private boolean processedInputs = false;
-
-    // Acceleration applied on the last tick (pixels per tick^2)
-
-    // Size of the spaceship
-    private static final int WIDTH = 50;
-    private static final int HEIGHT = 50;
-
+    // Guardar solo el estado del último input recibido
+    private InputPayload lastKeyboardInput = null;
+    private GamepadInputPayload lastGamepadInput = null;
     private boolean turbo = false;
 
-    // Ship attributes (loaded from JSON)
     private final List<AttributeModifier> attributeModifiers = new ArrayList<>();
 
-    /**
-     * Creates a new player at the specified position.
-     *
-     * @param x initial x position
-     * @param y initial y position
-     * @param orientation initial player orientation in radians
-     * @param velocityX initial x velocity
-     * @param velocityY initial y velocity
-     * @param uuid player uuid
-     * @param name player name
-     */
-    public ServerPlayer(double x, double y, double orientation, double velocityX, double velocityY, UUID uuid, String name, ServerLevel level){
-        super(x, y, orientation, velocityX, velocityY, uuid, name);
-        this.level = level;
-        this.attributeModifiers.add(new AttributeModifier(MAX_SPEED.get(), UUID.randomUUID(), "player:base_max_speed", ADD_BASE, BASE_MAX_SPEED));
-        this.attributeModifiers.add(new AttributeModifier(FORWARD_ACCELERATION.get(), UUID.randomUUID(), "player:base_forward_acceleration", ADD_BASE, BASE_FORWARD_ACCELERATION));
-        this.attributeModifiers.add(new AttributeModifier(REVERSE_ACCELERATION.get(), UUID.randomUUID(), "player:base_reverse_acceleration", ADD_BASE, BASE_REVERSE_ACCELERATION));
-        this.attributeModifiers.add(new AttributeModifier(LATERAL_SPEED.get(), UUID.randomUUID(), "player:base_lateral_speed", ADD_BASE, BASE_LATERAL_SPEED));
-        this.attributeModifiers.add(new AttributeModifier(ROTATION_SPEED.get(), UUID.randomUUID(), "player:base_rotation_speed", ADD_BASE, BASE_ROTATION_SPEED));
-    }
-
-    /**
-     * Creates a new player at the specified position.
-     *
-     * @param uuid player uuid
-     * @param name player name
-     */
     public ServerPlayer(UUID uuid, String name, ServerLevel level){
         super(uuid, name);
         this.level = level;
@@ -81,43 +48,58 @@ public class ServerPlayer extends Player {
         this.attributeModifiers.add(new AttributeModifier(ROTATION_SPEED.get(), UUID.randomUUID(), "player:base_rotation_speed", ADD_BASE, BASE_ROTATION_SPEED));
     }
 
-    /**
-     * Updates the player's physics state based on the keys currently held down.
-     * Called once per tick. Rotation is handled externally (mouse-based).
-     */
+    // El evento SOLO guarda el payload en una variable, NO mueve al jugador
     @SubscribeEvent
     public void onPlayerInput(InputPayload payload) {
+        if (payload.playerUUID.equals(this.uuid)) {
+            this.lastKeyboardInput = payload;
+            this.lastGamepadInput = null; // Priorizar teclado si se recibe teclado
+        }
+    }
 
-        if(!payload.playerUUID.equals(this.uuid)){
-            return;
+    @SubscribeEvent
+    public void onPlayerGamepadInput(GamepadInputPayload payload) {
+        if (payload.playerUUID.equals(this.uuid)) {
+            this.lastGamepadInput = payload;
+            this.lastKeyboardInput = null;
+        }
+    }
+
+    // El tick del servidor (60 FPS regulados) es el ÚNICO lugar donde se calcula la física
+    public void tick() {
+        if (lastKeyboardInput != null) {
+            processKeyboardPhysics(lastKeyboardInput);
+        } else if (lastGamepadInput != null) {
+            processGamepadPhysics(lastGamepadInput);
         }
 
-        List<Integer> inputs = payload.inputs;
+        // Notificar a los clientes la nueva posición regulada a 60 FPS
+        PlayerUpdatePayload updatePayload = new PlayerUpdatePayload(
+                this.uuid, this.x, this.y, this.orientation,
+                this.velocityX, this.velocityY, this.accelerationX, this.accelerationY
+        );
+        Game.getInstance().getClientBus().post(updatePayload);
+    }
 
-        // Translate the held keys into thrust axes
+    private void processKeyboardPhysics(InputPayload payload) {
+        List<Integer> inputs = payload.inputs;
         int inputY = getForwardInput(inputs, payload.invertControls);
         int inputX = getLateralInput(inputs);
 
         this.turbo = false;
 
-        for(int key : inputs){
-            if(key == KeyEvent.VK_CONTROL){
-                if(this.velocityX == 0 && this.velocityY == 0){
+        for (int key : inputs) {
+            if (key == KeyEvent.VK_CONTROL) {
+                if (this.velocityX == 0 && this.velocityY == 0) {
                     updateOrientation(payload.targetAngle);
-
-                    PlayerUpdatePayload updatePayload = new PlayerUpdatePayload(this.uuid, this.x, this.y, this.orientation, this.velocityX, this.velocityY, this.accelerationX, this.accelerationY);
-                    Game.getInstance().getClientBus().post(updatePayload);
-
                     return;
                 }
                 double velocity = Math.hypot(velocityX, velocityY);
                 double movementX = this.velocityX / velocity;
                 double movementY = this.velocityY / velocity;
-
                 double deaccel = FORWARD_ACCELERATION.get().getValue(this.attributeModifiers);
 
-                // Apply deceleration to slow down the ship
-                if(velocity <= deaccel){
+                if (velocity <= deaccel) {
                     this.velocityX = 0;
                     this.velocityY = 0;
                     this.accelerationX = 0;
@@ -125,131 +107,64 @@ public class ServerPlayer extends Player {
                 } else {
                     this.accelerationX = -movementX * deaccel;
                     this.accelerationY = -movementY * deaccel;
-
-                    // Apply deceleration to velocity, ensuring it doesn't become negative
                     this.velocityX -= movementX * deaccel;
                     this.velocityY -= movementY * deaccel;
-
                 }
 
                 this.x += this.velocityX;
                 this.y += this.velocityY;
-
                 updateOrientation(Math.atan2(-movementY, -movementX));
-
-                PlayerUpdatePayload updatePayload = new PlayerUpdatePayload(this.uuid, this.x, this.y, this.orientation, this.velocityX, this.velocityY, this.accelerationX, this.accelerationY);
-                Game.getInstance().getClientBus().post(updatePayload);
-
                 return;
             }
 
-            if(key == KeyEvent.VK_SHIFT) {
+            if (key == KeyEvent.VK_SHIFT) {
                 this.turbo = true;
             }
         }
 
-        // Speed at the start of the tick, before this tick's thrust is applied.
-        // Used as the "frozen" limit while the ship is above the max speed.
         double speedBeforeThrust = Math.hypot(this.velocityX, this.velocityY);
-
-        // Calculate acceleration based on current orientation and input
         double accelX = 0;
         double accelY = 0;
 
-        // Forward/backward thrusters (W/S/UP/DOWN keys) - along ship's orientation
         if (inputY != 0) {
-            double accel;
-            if (inputY == 1) {
-                // W/UP = forward
-                accel = FORWARD_ACCELERATION.get().getValue(this.attributeModifiers) * (turbo ? 2 : 1);
-            } else {
-                // S/DOWN = reverse (slower)
-                accel = REVERSE_ACCELERATION.get().getValue(this.attributeModifiers) * (turbo ? 2 : 1);
-            }
+            double accel = (inputY == 1 ? FORWARD_ACCELERATION.get().getValue(this.attributeModifiers)
+                    : REVERSE_ACCELERATION.get().getValue(this.attributeModifiers)) * (turbo ? 2 : 1);
             accelX += Math.cos(orientation) * accel * inputY;
             accelY += Math.sin(orientation) * accel * inputY;
         }
 
-        // Lateral thrusters (Q/E keys) - perpendicular to ship's orientation
         if (inputX != 0) {
             double lateralSpeed = LATERAL_SPEED.get().getValue(this.attributeModifiers);
             velocityX += -Math.sin(orientation) * lateralSpeed * inputX;
             velocityY += Math.cos(orientation) * lateralSpeed * inputX;
         }
 
-        // Apply acceleration to velocity with gradual build-up (in-space physics)
         this.accelerationX = accelX;
         this.accelerationY = accelY;
-        this.velocityX = this.velocityX + this.accelerationX;
-        this.velocityY = this.velocityY + this.accelerationY;
+        this.velocityX += this.accelerationX;
+        this.velocityY += this.accelerationY;
 
-        // Speed management
-        double maxSpeed = MAX_SPEED.get().getValue(this.attributeModifiers) * (turbo ? 2 : 1);
-        double speed = Math.hypot(velocityX, velocityY);
-        double threshold = maxSpeed * 1.15;
+        applySpeedLimit(speedBeforeThrust);
 
-        if (speed > maxSpeed && maxSpeed > 0) {
-            double velOrientation = Math.atan2(velocityY, velocityX);
-
-            if (speed > threshold) {
-                // Way above max: freeze speed at its current value (do not reduce)
-                // It must NOT grow further either: cap at speedBeforeThrust
-                double frozenLimit = Math.min(speedBeforeThrust, speed);
-                // Prevent acceleration from pushing it over frozenLimit this tick
-                // By projecting velocity to frozenLimit along direction if it grew
-                if (speed > frozenLimit) {
-                    this.velocityX = Math.cos(velOrientation) * frozenLimit;
-                    this.velocityY = Math.sin(velOrientation) * frozenLimit;
-                }
-                // If it stayed under frozenLimit naturally, leave it unchanged
-            } else {
-                // Between max and 15% over: standard clamp
-                this.velocityX = Math.cos(velOrientation) * maxSpeed;
-                this.velocityY = Math.sin(velOrientation) * maxSpeed;
-            }
-        }
-
-        // Update position
-        x += velocityX;
-        y += velocityY;
-
-        // Keep within bounds (world bounds, not screen bounds - world is infinite)
-        // Bounds are effectively disabled for infinite space; kept for safety
-        x = Math.max(-1e6, Math.min(x, 1e6));
-        y = Math.max(-1e6, Math.min(y, 1e6));
-
+        this.x += velocityX;
+        this.y += velocityY;
         updateOrientation(payload.targetAngle);
-
-        PlayerUpdatePayload updatePayload = new PlayerUpdatePayload(this.uuid, this.x, this.y, this.orientation, this.velocityX, this.velocityY, this.accelerationX, this.accelerationY);
-        Game.getInstance().getClientBus().post(updatePayload);
     }
 
-    @SubscribeEvent
-    public void onPlayerGamepadInput(GamepadInputPayload payload) {
+    private void processGamepadPhysics(GamepadInputPayload payload) {
+        this.turbo = payload.lt;
 
-        if(!payload.playerUUID.equals(this.uuid)){
-            return;
-        }
-
-        this.turbo = false;
-
-        if(Math.abs(payload.xAxis) < 0.1 && Math.abs(payload.yAxis) < 0.1){
-            if(this.velocityX == 0 && this.velocityY == 0){
+        if (Math.abs(payload.xAxis) < 0.1 && Math.abs(payload.yAxis) < 0.1) {
+            if (this.velocityX == 0 && this.velocityY == 0) {
                 updateOrientation(0);
-
-                PlayerUpdatePayload updatePayload = new PlayerUpdatePayload(this.uuid, this.x, this.y, this.orientation, this.velocityX, this.velocityY, this.accelerationX, this.accelerationY);
-                Game.getInstance().getClientBus().post(updatePayload);
-
                 return;
             }
             double velocity = Math.hypot(velocityX, velocityY);
             double movementX = this.velocityX / velocity;
             double movementY = this.velocityY / velocity;
-
             double deaccel = FORWARD_ACCELERATION.get().getValue(this.attributeModifiers);
 
-            // Apply deceleration to slow down the ship
-            if(velocity <= deaccel){
+            if (velocity <= deaccel) {
                 this.velocityX = 0;
                 this.velocityY = 0;
                 this.accelerationX = 0;
@@ -257,88 +172,50 @@ public class ServerPlayer extends Player {
             } else {
                 this.accelerationX = -movementX * deaccel;
                 this.accelerationY = -movementY * deaccel;
-
-                // Apply deceleration to velocity, ensuring it doesn't become negative
                 this.velocityX -= movementX * deaccel;
                 this.velocityY -= movementY * deaccel;
-
             }
 
             this.x += this.velocityX;
             this.y += this.velocityY;
-
             updateOrientation(Math.atan2(-movementY, -movementX));
-
-            PlayerUpdatePayload updatePayload = new PlayerUpdatePayload(this.uuid, this.x, this.y, this.orientation, this.velocityX, this.velocityY, this.accelerationX, this.accelerationY);
-            Game.getInstance().getClientBus().post(updatePayload);
-
             return;
         }
 
-        if(payload.lt) {
-            this.turbo = true;
-        }
-
-        // Speed at the start of the tick, before this tick's thrust is applied.
-        // Used as the "frozen" limit while the ship is above the max speed.
         double speedBeforeThrust = Math.hypot(this.velocityX, this.velocityY);
-
         double accelAngle = Math.atan2(payload.yAxis, payload.xAxis);
 
-        // Calculate acceleration based on current orientation and input
-        double accelX = FORWARD_ACCELERATION.get().getValue(this.attributeModifiers) * (turbo ? 2 : 1) * payload.xAxis;
-        double accelY = FORWARD_ACCELERATION.get().getValue(this.attributeModifiers) * (turbo ? 2 : 1) * payload.yAxis;
+        this.accelerationX = FORWARD_ACCELERATION.get().getValue(this.attributeModifiers) * (turbo ? 2 : 1) * payload.xAxis;
+        this.accelerationY = FORWARD_ACCELERATION.get().getValue(this.attributeModifiers) * (turbo ? 2 : 1) * payload.yAxis;
 
-        // Apply acceleration to velocity with gradual build-up (in-space physics)
-        this.accelerationX = accelX;
-        this.accelerationY = accelY;
-        this.velocityX = this.velocityX + this.accelerationX;
-        this.velocityY = this.velocityY + this.accelerationY;
+        this.velocityX += this.accelerationX;
+        this.velocityY += this.accelerationY;
 
-        // Speed management
+        applySpeedLimit(speedBeforeThrust);
+
+        this.x += velocityX;
+        this.y += velocityY;
+        updateOrientation(accelAngle);
+    }
+
+    private void applySpeedLimit(double speedBeforeThrust) {
         double maxSpeed = MAX_SPEED.get().getValue(this.attributeModifiers) * (turbo ? 2 : 1);
         double speed = Math.hypot(velocityX, velocityY);
         double threshold = maxSpeed * 1.15;
 
         if (speed > maxSpeed && maxSpeed > 0) {
             double velOrientation = Math.atan2(velocityY, velocityX);
-
             if (speed > threshold) {
-                // Way above max: freeze speed at its current value (do not reduce)
-                // It must NOT grow further either: cap at speedBeforeThrust
                 double frozenLimit = Math.min(speedBeforeThrust, speed);
-                // Prevent acceleration from pushing it over frozenLimit this tick
-                // By projecting velocity to frozenLimit along direction if it grew
                 if (speed > frozenLimit) {
                     this.velocityX = Math.cos(velOrientation) * frozenLimit;
                     this.velocityY = Math.sin(velOrientation) * frozenLimit;
                 }
-                // If it stayed under frozenLimit naturally, leave it unchanged
             } else {
-                // Between max and 15% over: standard clamp
                 this.velocityX = Math.cos(velOrientation) * maxSpeed;
                 this.velocityY = Math.sin(velOrientation) * maxSpeed;
             }
         }
-
-        // Update position
-        x += velocityX;
-        y += velocityY;
-
-        // Keep within bounds (world bounds, not screen bounds - world is infinite)
-        // Bounds are effectively disabled for infinite space; kept for safety
-        x = Math.max(-1e6, Math.min(x, 1e6));
-        y = Math.max(-1e6, Math.min(y, 1e6));
-
-        updateOrientation(accelAngle);
-
-        PlayerUpdatePayload updatePayload = new PlayerUpdatePayload(this.uuid, this.x, this.y, this.orientation, this.velocityX, this.velocityY, this.accelerationX, this.accelerationY);
-        Game.getInstance().getClientBus().post(updatePayload);
-    }
-
-    public void tick(){
-        InputRequestPayload payload = new InputRequestPayload(this.uuid);
-        Game.getInstance().getClientBus().post(payload);
     }
 
     /**
@@ -444,24 +321,6 @@ public class ServerPlayer extends Player {
      */
     public double getOrientation() {
         return orientation;
-    }
-
-    /**
-     * Gets the player's width.
-     *
-     * @return width
-     */
-    public int getWidth() {
-        return WIDTH;
-    }
-
-    /**
-     * Gets the player's height.
-     *
-     * @return height
-     */
-    public int getHeight() {
-        return HEIGHT;
     }
 
     /**

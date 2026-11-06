@@ -58,6 +58,29 @@ public class ClientLevel extends Level {
             renderer.pollEvents();
             renderer.render();
 
+            boolean useGamepad = renderer.isUseGamepad();
+
+            if (useGamepad) {
+                InputDevice controller = null;
+                for(InputDevice c : this.controllers){
+                    if(c.getControllerType().equals(ControllerType.XBOX) || c.getControllerType().equals(ControllerType.GENERIC)) {
+                        controller = c;
+                        break;
+                    }
+                }
+
+                if(controller == null) return;
+
+                controller.poll();
+
+                GamepadInputPayload payload = getGamepadInputPayload(this.localPlayer, controller);
+                Game.getInstance().getServerBus().post(payload);
+                return;
+            }
+
+            InputPayload inputPayload = getInputPayload();
+            Game.getInstance().getServerBus().post(inputPayload);
+
             try {
                 Thread.sleep(1);
             } catch (InterruptedException e) {
@@ -105,38 +128,6 @@ public class ClientLevel extends Level {
                 }
             }
         }
-    }
-
-    @SubscribeEvent
-    public void onInputRequest(InputRequestPayload inputRequestPayload){
-        if (localPlayer == null) return;
-
-        if(!this.localPlayer.getUuid().equals(inputRequestPayload.playerUUID)){
-            return;
-        }
-
-        boolean useGamepad = renderer.isUseGamepad();
-
-        if (useGamepad) {
-            InputDevice controller = null;
-            for(InputDevice c : this.controllers){
-                if(c.getControllerType().equals(ControllerType.XBOX) || c.getControllerType().equals(ControllerType.GENERIC)) {
-                    controller = c;
-                    break;
-                }
-            }
-
-            if(controller == null) return;
-
-            controller.poll();
-
-            GamepadInputPayload payload = getGamepadInputPayload(this.localPlayer, controller);
-            Game.getInstance().getServerBus().post(payload);
-            return;
-        }
-
-        InputPayload inputPayload = getInputPayload();
-        Game.getInstance().getServerBus().post(inputPayload);
     }
 
     private InputPayload getInputPayload() {

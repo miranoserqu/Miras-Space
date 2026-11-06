@@ -5,6 +5,10 @@
       "WebSearch",
       "WebFetch(domain:input4j.org)",
       "WebFetch(domain:github.com)"
+    ], 
+    "deny": [
+      "Bash(git worktree *)",
+      "Bash(git worktree add *)"
     ]
   }
 }

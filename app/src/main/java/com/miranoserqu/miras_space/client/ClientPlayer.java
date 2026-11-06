@@ -23,17 +23,6 @@ public class ClientPlayer extends Player {
         this.level = level;
     }
 
-    @SubscribeEvent
-    public void onPositionChange(PlayerUpdatePayload payload){
-        this.x = payload.x;
-        this.y = payload.y;
-        this.velocityX = payload.vX;
-        this.velocityY = payload.vY;
-        this.orientation = payload.angle;
-        this.accelerationX = payload.aX;
-        this.accelerationY = payload.aY;
-    }
-
     /**
      * Renders the player using LWJGL OpenGL.
      */

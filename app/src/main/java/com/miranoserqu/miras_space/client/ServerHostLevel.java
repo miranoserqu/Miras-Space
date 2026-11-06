@@ -68,11 +68,6 @@ public class ServerHostLevel extends Level {
     // --- ENVIAR DATOS A LOS CLIENTES ---
 
     @SubscribeEvent
-    public void onPlayerInputRequest(InputRequestPayload payload) {
-        broadcastPayload(payload);
-    }
-
-    @SubscribeEvent
     public void onPlayerUpdate(PlayerUpdatePayload payload) {
         broadcastPayload(payload);
     }
