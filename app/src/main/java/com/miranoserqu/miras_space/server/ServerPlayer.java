@@ -23,10 +23,10 @@ import static com.miranoserqu.miras_space.tag.AttributeModifier.ModifierType.*;
  */
 public class ServerPlayer extends Player {
 
-    public static final double BASE_MAX_SPEED = 20;
-    public static final double BASE_FORWARD_ACCELERATION = 0.5;
-    public static final double BASE_REVERSE_ACCELERATION = 0.2;
-    public static final double BASE_LATERAL_SPEED = 0.04;
+    public static final double BASE_MAX_SPEED = (double) 20 / 50;
+    public static final double BASE_FORWARD_ACCELERATION = 0.5 / 50;
+    public static final double BASE_REVERSE_ACCELERATION = 0.2 / 50;
+    public static final double BASE_LATERAL_SPEED = 0.04 / 50;
     public static final double BASE_ROTATION_SPEED = 10;
 
     private final ServerLevel level;

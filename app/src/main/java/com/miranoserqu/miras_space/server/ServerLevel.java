@@ -22,6 +22,8 @@ public class ServerLevel extends Level {
     protected final double boundaryX;
     protected final double boundaryY;
 
+    protected final int seed;
+
     private Map<UUID, ServerPlayer> players;
     private Map<UUID, Entity> entities;
     private boolean running;
@@ -32,12 +34,13 @@ public class ServerLevel extends Level {
      */
     public ServerLevel() {
         super();
-        this.boundaryX = Option.WEIGHT_RESOLUTION.getValue();
+        this.boundaryX = Option.WIDTH_RESOLUTION.getValue();
         this.boundaryY = Option.HEIGHT_RESOLUTION.getValue();
         this.players = new HashMap<>();
         this.entities = new HashMap<>();
         this.running = false;
         Game.getInstance().registerServer(this);
+        this.seed = 42;
     }
 
     /**

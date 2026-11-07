@@ -20,7 +20,7 @@ public class Main {
 
     public static void main(String[] args) throws IOException, InterruptedException {
         Scanner scanner = new Scanner(System.in);
-        System.out.println("Insert operation");
+        System.out.println("Insert operation: ");
         String op = scanner.next();
         switch(op){
             case "runClient" -> ClientMain.main(args);

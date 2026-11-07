@@ -1,5 +1,6 @@
 package com.miranoserqu.miras_space.client;
 
+import com.miranoserqu.miras_space.Option;
 import com.miranoserqu.miras_space.game.Game;
 import com.miranoserqu.miras_space.entity.RemotePlayer;
 import com.miranoserqu.miras_space.event.SubscribeEvent;
@@ -29,7 +30,7 @@ public class ClientLevel extends Level {
     public ClientLevel() {
         super();
         this.controllers = InputDevices.init().getAll();
-        this.renderer = new LWJGLRenderer(WINDOW_WIDTH, WINDOW_HEIGHT, null, this.remotePlayers);
+        this.renderer = new LWJGLRenderer(Option.WIDTH_RESOLUTION.getValue(), Option.HEIGHT_RESOLUTION.getValue(), null, this.remotePlayers);
         this.renderer.init();
         Game.getInstance().registerClient(this);
     }

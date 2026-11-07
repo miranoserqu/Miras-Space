@@ -15,6 +15,10 @@ public class InputRequestPayload extends Payload {
 
     }
 
+    public InputRequestPayload(DataInputStream dis) throws IOException {
+        super(dis);
+    }
+
     public InputRequestPayload(UUID playerUUID){
         this.playerUUID = playerUUID;
     }

@@ -3,9 +3,7 @@ package com.miranoserqu.miras_space.network;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * Represents a data packet sent between client and server.
@@ -17,6 +15,11 @@ public abstract class Payload {
 
     public Payload(){
 
+    }
+
+    public Payload(DataInputStream dis) throws IOException {
+        this();
+        this.deserialize(dis);
     }
 
     public abstract void serialize(DataOutputStream buf) throws IOException;

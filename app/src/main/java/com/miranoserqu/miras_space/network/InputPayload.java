@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+@Sendable(id = GamepadInputPayload.ID, target = Sendable.Target.SERVER)
 public class InputPayload extends Payload {
 
     public boolean invertControls;
@@ -20,6 +21,10 @@ public class InputPayload extends Payload {
 
     public InputPayload(){
 
+    }
+
+    public InputPayload(DataInputStream dis) throws IOException {
+        super(dis);
     }
 
     public InputPayload(double mouseX, double mouseY, List<Integer> inputs, double targetAngle, UUID playerUUID, boolean invertControls){

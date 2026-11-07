@@ -1,5 +1,10 @@
 package com.miranoserqu.miras_space;
 
+import org.lwjgl.glfw.GLFW;
+
+import java.awt.*;
+import java.util.Objects;
+
 public class Option<A> {
 
     protected final String location;
@@ -122,6 +127,11 @@ public class Option<A> {
             public String getLocation() {
                 return "full_screen";
             }
+
+            @Override
+            public long monitor(){
+                return org.lwjgl.glfw.GLFW.glfwGetPrimaryMonitor();
+            }
         },
         WINDOWED {
             @Override
@@ -133,12 +143,20 @@ public class Option<A> {
             public String getLocation() {
                 return "windowed_window";
             }
-        }
+
+            @Override
+            public long monitor(){
+                return 0;
+            }
+        };
+
+        public abstract long monitor();
     }
 
-    public static final IntegerOption HEIGHT_RESOLUTION = new IntegerOption("height_resolution", "options:height_resolution_name", "options:height_resolution_description", 1080);
-    public static final IntegerOption WEIGHT_RESOLUTION = new IntegerOption("weight_resolution", "options:weight_resolution_name", "options:weight_resolution_description", 1920);
-    public static final ElectionOption<WindowType> WINDOW_TYPE = new ElectionOption<>("window_type", "options:window_type", "options:window_type_description", WindowType.WINDOWED);
+    public static final IntegerOption HEIGHT_RESOLUTION = new IntegerOption("height_resolution", "options:height_resolution_name", "options:height_resolution_description", GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice().getDisplayMode().getHeight());
+    public static final IntegerOption WIDTH_RESOLUTION = new IntegerOption("width_resolution", "options:width_resolution_name", "options:width_resolution_description", GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice().getDisplayMode().getWidth());
+    public static final ElectionOption<WindowType> WINDOW_TYPE = new ElectionOption<>("window_type", "options:window_type", "options:window_type_description", WindowType.FULL_SCREEN);
     public static final DoubleOption ZOOM = new DoubleOption("zoom", "options:zoom", "options:zoom_description", 1, 3, 0.5);
+    public static final Option<String> LANG = new Option<>("lang", "options:lang", "options:lang_description", "data/miras_space/lang-usa.json");
 
 }

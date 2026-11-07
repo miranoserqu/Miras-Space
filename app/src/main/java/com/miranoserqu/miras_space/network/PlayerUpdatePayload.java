@@ -5,6 +5,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.UUID;
 
+@Sendable(id = PlayerUpdatePayload.ID, target = Sendable.Target.CLIENT)
 public class PlayerUpdatePayload extends Payload {
 
     public double x;
@@ -18,6 +19,10 @@ public class PlayerUpdatePayload extends Payload {
 
     public PlayerUpdatePayload(){
 
+    }
+
+    public PlayerUpdatePayload(DataInputStream dis) throws IOException {
+        super(dis);
     }
 
     public PlayerUpdatePayload(UUID playerUUID, double x, double y, double angle, double vX, double vY, double aX, double aY){

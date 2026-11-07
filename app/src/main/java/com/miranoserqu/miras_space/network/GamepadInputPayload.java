@@ -5,6 +5,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.UUID;
 
+@Sendable(id = GamepadInputPayload.ID, target = Sendable.Target.SERVER)
 public class GamepadInputPayload extends Payload {
 
     public float xAxis;
@@ -26,6 +27,10 @@ public class GamepadInputPayload extends Payload {
 
     public GamepadInputPayload(){
 
+    }
+
+    public GamepadInputPayload(DataInputStream dis) throws IOException {
+        super(dis);
     }
 
     public GamepadInputPayload(UUID playerUUID, float xAxis, float yAxis, boolean a, boolean b, boolean x, boolean y, boolean lt, boolean lb, boolean rt, boolean rb, boolean start, boolean right, boolean left, boolean up, boolean down){

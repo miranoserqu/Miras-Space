@@ -10,7 +10,7 @@ app/
 │   ├── main/
 │   │   ├── java/
 │   │   │   └── com/miranoserqu/miras_space/
-│   │   │       ├── Main.java                  # Game entry point
+│   │   │       ├── com.miranoserqu.miras_space.Main.java                  # Game entry point
 │   │   │       ├── game/
 │   │   │       │   └── Player.java            # Player spaceship data and logic
 │   │   │       ├── network/
@@ -99,7 +99,7 @@ The spaceship is constrained to stay within the game window boundaries.
    ```
    ./gradlew run
    ```
-   Or execute the Main class directly from your IDE.
+   Or execute the com.miranoserqu.miras_space.Main class directly from your IDE.
 
 ## Implementation Details
 

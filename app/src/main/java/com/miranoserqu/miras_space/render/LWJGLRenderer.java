@@ -1,7 +1,9 @@
 package com.miranoserqu.miras_space.render;
 
+import com.miranoserqu.miras_space.Option;
 import com.miranoserqu.miras_space.client.ClientPlayer;
 import com.miranoserqu.miras_space.entity.RemotePlayer;
+import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.glfw.GLFWVidMode;
 import org.lwjgl.opengl.GL;
@@ -35,6 +37,7 @@ public class LWJGLRenderer {
     private long lastSecond = System.nanoTime();
     private ClientPlayer localPlayer;
     private Map<UUID, RemotePlayer> remotePlayers;
+    private final Camera2D camera = new Camera2D();
 
     private boolean[] keyStates = new boolean[GLFW_KEY_LAST + 1];
     private double mouseX = 0;
@@ -67,12 +70,31 @@ public class LWJGLRenderer {
             throw new IllegalStateException("Unable to initialize GLFW");
         }
 
-        glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
+        if (localPlayer != null) {
+            camera.setPosition((float) localPlayer.getX(), (float) localPlayer.getY());
+        }
 
-        window = glfwCreateWindow(width, height, "Miras Space - LWJGL", 0, 0);
+        GLFW.glfwDefaultWindowHints();
+        GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE);
+        GLFW.glfwWindowHint(GLFW.GLFW_RESIZABLE, GLFW.GLFW_TRUE);
+
+        window = glfwCreateWindow(width, height, "Miras Space - LWJGL", Option.WINDOW_TYPE.getValue().monitor(), 0);
         if (window == 0) {
             throw new RuntimeException("Failed to create the GLFW window");
         }
+
+        // Callback para mantener el Viewport de OpenGL y la matriz de la cámara sincronizados al cambiar el tamaño de ventana
+        glfwSetFramebufferSizeCallback(window, (win, newWidth, newHeight) -> {
+            if (newWidth > 0 && newHeight > 0) {
+                this.width = newWidth;
+                this.height = newHeight;
+                glViewport(0, 0, newWidth, newHeight);
+            }
+        });
+
+        GLFW.glfwSetWindowPos(window, 0, 0);
+        GLFW.glfwMakeContextCurrent(window);
+        GLFW.glfwShowWindow(window);
 
         glfwSetKeyCallback(window, (window, key, scancode, action, mods) -> {
             if (key == GLFW_KEY_F3) {
@@ -113,7 +135,7 @@ public class LWJGLRenderer {
         glfwSetCursorPosCallback(window, (window, xpos, ypos) -> {
             if (!useGamepad) {
                 mouseX = xpos;
-                mouseY = ypos;
+                mouseY = getWindowHeight() - ypos;
             }
         });
 
@@ -142,6 +164,7 @@ public class LWJGLRenderer {
 
     private void initOpenGL() {
         GL.createCapabilities();
+        glViewport(0, 0, width, height);
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -191,7 +214,7 @@ public class LWJGLRenderer {
             return;
         }
 
-        // --- SNAPSHOT DE COORDENADAS (Evita desincronización por multithreading) ---
+        // --- SNAPSHOT DE COORDENADAS ---
         final double localX = localPlayer.getX();
         final double localY = localPlayer.getY();
         final double localVelX = localPlayer.getVelocityX();
@@ -201,39 +224,43 @@ public class LWJGLRenderer {
         final double localOrient = localPlayer.getOrientation();
         final UUID localUuid = localPlayer.getUuid();
 
+        // --- ACTUALIZAR LA CÁMARA ---
+        // Se posiciona en las coordenadas del mundo sumando el temblor (shake) y el avance por velocidad
+        double targetCamX = localX + localVelX * 0.05 + cameraShakeX;
+        double targetCamY = localY + localVelY * 0.05 + cameraShakeY;
+        camera.setPosition((float) targetCamX, (float) targetCamY);
+        camera.updateMatrices(width, height);
+
+        // APLICAR MATRIZ DE LA CÁMARA (Proyección + Vista combinadas en el pipeline de OpenGL)
         glMatrixMode(GL_PROJECTION);
         glLoadIdentity();
-        glOrtho(0, width, height, 0, -1, 1);
+        float[] matrixBuffer = new float[16];
+        camera.getCombinedMatrix().get(matrixBuffer);
+        glLoadMatrixf(matrixBuffer);
 
         glMatrixMode(GL_MODELVIEW);
         glLoadIdentity();
 
-        // --- 1. FONDO (TILES) ---
+        // --- 1. FONDO (TILES EN COORDENADAS DEL MUNDO) ---
         glEnable(GL_TEXTURE_2D);
         glBindTexture(GL_TEXTURE_2D, textureId);
         glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 
-        double tileW = textureWidth;
-        double tileH = textureHeight;
+        // Convertir el tamaño de textura en píxeles a unidades del mundo
+        double tileW = textureWidth / Camera2D.PIXELS_PER_UNIT;
+        double tileH = textureHeight / Camera2D.PIXELS_PER_UNIT;
 
-        // Usamos el snapshot localX/localY si worldOffset depende del jugador
-        double offsetX = worldOffsetX % tileW;
-        double offsetY = worldOffsetY % tileH;
-        if (offsetX < 0) offsetX += tileW;
-        if (offsetY < 0) offsetY += tileH;
-
-        double camOffsetX = localAccelX * 0.5 + cameraShakeX;
-        double camOffsetY = localAccelY * 0.5 + cameraShakeY;
-
-        int startCol = (int) Math.floor((-offsetX + camOffsetX) / tileW) - 1;
-        int startRow = (int) Math.floor((-offsetY + camOffsetY) / tileH) - 1;
-        int endCol = startCol + (int) Math.ceil((width + tileW) / tileW) + 3;
-        int endRow = startRow + (int) Math.ceil((height + tileH) / tileH) + 3;
+        // Calcular el rango de teselas visibles en el área que abarca la cámara
+        double camX = camera.getCombinedMatrix().m30();
+        int startCol = (int) Math.floor((localX - 25.0) / tileW);
+        int endCol = (int) Math.ceil((localX + 25.0) / tileW);
+        int startRow = (int) Math.floor((localY - 25.0) / tileH);
+        int endRow = (int) Math.ceil((localY + 25.0) / tileH);
 
         for (int row = startRow; row <= endRow; row++) {
             for (int col = startCol; col <= endCol; col++) {
-                float x1 = (float) (col * tileW - offsetX + camOffsetX);
-                float y1 = (float) (row * tileH - offsetY + camOffsetY);
+                float x1 = (float) (col * tileW);
+                float y1 = (float) (row * tileH);
                 float x2 = (float) (x1 + tileW);
                 float y2 = (float) (y1 + tileH);
 
@@ -247,26 +274,22 @@ public class LWJGLRenderer {
         }
         glDisable(GL_TEXTURE_2D);
 
-        // --- CENTRO DE CÁMARA (Basado en el snapshot) ---
-        double speedCamX = localVelX * 0.15 + cameraShakeX;
-        double speedCamY = localVelY * 0.15 + cameraShakeY;
-        double camCenterX = width / 2.0 + speedCamX;
-        double camCenterY = height / 2.0 + speedCamY;
-        double size = 25.0;
+        // Tamaño de las naves expresado en unidades del mundo (ej. 0.35 unidades = 35px a zoom 1.0)
+        float entitySize = 0.35f;
 
         // --- 2. JUGADOR LOCAL ---
         glPushMatrix();
-        glTranslated(camCenterX, camCenterY, 0);
+        glTranslated(localX, localY, 0);
         glRotated(Math.toDegrees(localOrient), 0, 0, 1);
 
         glBegin(GL_TRIANGLES);
         glColor3f(0.0f, 1.0f, 0.0f); // Verde
-        glVertex2f((float) -size, (float) -size);
-        glVertex2f((float) -size, (float) size);
-        glVertex2f((float) size, 0);
+        glVertex2f(-entitySize, -entitySize);
+        glVertex2f(-entitySize, entitySize);
+        glVertex2f(entitySize, 0);
         glEnd();
 
-        glPopMatrix(); // Cerrar el aislamiento del jugador local AQUÍ
+        glPopMatrix();
 
         // --- 3. JUGADORES REMOTOS ---
         for (RemotePlayer remotePlayer : this.remotePlayers.values()) {
@@ -274,29 +297,32 @@ public class LWJGLRenderer {
                 continue;
             }
 
-            double relX = remotePlayer.getX() - localX;
-            double relY = remotePlayer.getY() - localY;
-
-            glPushMatrix(); // Aislamos matriz para este jugador remoto
-
-            // 1. Trasladar al punto en pantalla correspondiente
-            glTranslated(camCenterX + relX, camCenterY + relY, 0);
-
-            // 2. Aplicar la orientación propia del jugador remoto en el eje Z
+            glPushMatrix();
+            glTranslated(remotePlayer.getX(), remotePlayer.getY(), 0);
             glRotated(Math.toDegrees(remotePlayer.getOrientation()), 0, 0, 1);
 
             glBegin(GL_TRIANGLES);
             glColor3f(1.0f, 0.0f, 0.0f); // Rojo
-            glVertex2f((float) -size, (float) -size);
-            glVertex2f((float) -size, (float) size);
-            glVertex2f((float) size, 0);
+            glVertex2f(-entitySize, -entitySize);
+            glVertex2f(-entitySize, entitySize);
+            glVertex2f(entitySize, 0);
             glEnd();
 
-            glPopMatrix(); // Deshacer traslación y rotación para el siguiente jugador remoto
+            glPopMatrix();
         }
 
         // --- 4. MARCADOR DE APUNTADO ---
         if (aimTargetSet) {
+            // Dibujar interfaz/cursor regresando temporalmente a coordenadas fijas de pantalla (píxeles)
+            glMatrixMode(GL_PROJECTION);
+            glPushMatrix();
+            glLoadIdentity();
+            glOrtho(0, width, height, 0, -1, 1);
+
+            glMatrixMode(GL_MODELVIEW);
+            glPushMatrix();
+            glLoadIdentity();
+
             glLineWidth(2.0f);
             glColor3f(1.0f, 1.0f, 0.0f);
             glBegin(GL_LINES);
@@ -312,6 +338,12 @@ public class LWJGLRenderer {
                 glVertex2f((float) (aimTargetX + r * Math.cos(angle)), (float) (aimTargetY + r * Math.sin(angle)));
             }
             glEnd();
+
+            // Restaurar matrices del espacio del mundo
+            glPopMatrix();
+            glMatrixMode(GL_PROJECTION);
+            glPopMatrix();
+            glMatrixMode(GL_MODELVIEW);
         }
 
         if (debugOverlay) {
@@ -327,7 +359,7 @@ public class LWJGLRenderer {
         if (localPlayer != null) {
             accelMagnitude = (float) Math.hypot(localPlayer.getAccelerationX(), localPlayer.getAccelerationY());
 
-            double camShakeMag = Math.min(accelMagnitude * 0.6, 8.0);
+            double camShakeMag = Math.min(accelMagnitude * 0.02, 0.15); // Escalado al espacio del mundo
             double shakeFreq = Math.max(0.3, accelMagnitude * 0.15);
             double shakePhase = (System.currentTimeMillis() / 16.0) % (2 * Math.PI);
             cameraShakeX = (float) (Math.sin(shakePhase) * camShakeMag);
@@ -362,14 +394,15 @@ public class LWJGLRenderer {
     }
 
     private void renderDebugOverlay() {
+        // Guardar estado y pasar a proyección fija ortográfica en píxeles para el HUD
+        glMatrixMode(GL_PROJECTION);
+        glPushMatrix();
         glLoadIdentity();
+        glOrtho(0, width, height, 0, -1, 1);
 
-        double vx = localPlayer.getVelocityX();
-        double vy = localPlayer.getVelocityY();
-        double accelerationX = localPlayer.getAccelerationX();
-        double accelerationY = localPlayer.getAccelerationY();
-        double speed = Math.hypot(vx, vy);
-        double accelMag = Math.hypot(accelerationX, accelerationY);
+        glMatrixMode(GL_MODELVIEW);
+        glPushMatrix();
+        glLoadIdentity();
 
         glColor4f(0.0f, 0.0f, 0.0f, 0.7f);
         glBegin(GL_QUADS);
@@ -378,6 +411,15 @@ public class LWJGLRenderer {
         glVertex2f(270, 150);
         glVertex2f(10, 150);
         glEnd();
+
+        glPopMatrix();
+        glMatrixMode(GL_PROJECTION);
+        glPopMatrix();
+        glMatrixMode(GL_MODELVIEW);
+    }
+
+    public Camera2D getCamera() {
+        return camera;
     }
 
     public long getWindow() {

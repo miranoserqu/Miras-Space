@@ -30,7 +30,7 @@
 ### Files Modified/Added
 ```
 app/src/main/java/com/miranoserqu/miras_space/
-├── Main.java                  # Entry point
+├── com.miranoserqu.miras_space.Main.java                  # Entry point
 ├── game/
 │   ├── Player.java           # Ship physics and state
 │   ├── ShipAttributes.java   # JSON-based attribute management
