@@ -78,7 +78,7 @@ public class LWJGLRenderer {
         GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE);
         GLFW.glfwWindowHint(GLFW.GLFW_RESIZABLE, GLFW.GLFW_TRUE);
 
-        window = glfwCreateWindow(width, height, "Miras Space - LWJGL", Option.WINDOW_TYPE.getValue().monitor(), 0);
+        window = glfwCreateWindow(width, height, "Miras Space - LWJGL", Option.WINDOW_TYPE.get().getValue().monitor(), 0);
         if (window == 0) {
             throw new RuntimeException("Failed to create the GLFW window");
         }
@@ -277,6 +277,10 @@ public class LWJGLRenderer {
         // Tamaño de las naves expresado en unidades del mundo (ej. 0.35 unidades = 35px a zoom 1.0)
         float entitySize = 0.35f;
 
+        if(debugOverlay){
+            renderDebugArrows();
+        }
+
         // --- 2. JUGADOR LOCAL ---
         glPushMatrix();
         glTranslated(localX, localY, 0);
@@ -365,8 +369,8 @@ public class LWJGLRenderer {
             cameraShakeX = (float) (Math.sin(shakePhase) * camShakeMag);
             cameraShakeY = (float) (Math.cos(shakePhase * 0.7) * camShakeMag);
 
-            worldOffsetX = localPlayer.getX() + localPlayer.getVelocityX() * 0.001;
-            worldOffsetY = localPlayer.getY() + localPlayer.getVelocityY() * 0.001;
+            worldOffsetX = localPlayer.getX() + localPlayer.getAccelerationX() * 0.01;
+            worldOffsetY = localPlayer.getY() + localPlayer.getAccelerationY() * 0.01;
         }
     }
 
@@ -416,6 +420,46 @@ public class LWJGLRenderer {
         glMatrixMode(GL_PROJECTION);
         glPopMatrix();
         glMatrixMode(GL_MODELVIEW);
+    }
+
+    public void renderDebugArrows(){
+        glMatrixMode(GL_PROJECTION);
+        glLoadIdentity();
+        float[] matrixBuffer = new float[16];
+        camera.getCombinedMatrix().get(matrixBuffer);
+        glLoadMatrixf(matrixBuffer);
+
+        double accel = Math.hypot(localPlayer.getAccelerationX(), localPlayer.getAccelerationY());
+
+        glMatrixMode(GL_MODELVIEW);
+        glLoadIdentity();
+
+        glColor4f(1.0f, 0.0f, 0.0f, 1);
+        glPushMatrix();
+        glTranslated(localPlayer.getX(), localPlayer.getY(), 0);
+        glRotated(Math.toDegrees(Math.atan2(localPlayer.getAccelerationY(), localPlayer.getAccelerationX())) - 90, 0, 0, 1);
+        glBegin(GL_QUADS);
+        glVertex2f(-0.1f, 0);
+        glVertex2f(-0.1f, (float) accel * 60);
+        glVertex2f(0.1f, (float) accel * 60);
+        glVertex2f(0.1f, 0);
+        glEnd();
+        glPopMatrix();
+
+        glColor4f(0.0f, 0.0f, 1.0f, 1);
+        glPushMatrix();
+        glTranslated(localPlayer.getX(), localPlayer.getY(), 0);
+        glRotated(Math.toDegrees(Math.atan2(localPlayer.getVelocityY(), localPlayer.getVelocityX())) - 90, 0, 0, 1);
+        glBegin(GL_QUADS);
+        glVertex2f(-0.05f, 0);
+        glVertex2f(-0.05f, (float) localPlayer.getVelocityMagnitude() * 60);
+        glVertex2f(0.05f, (float) localPlayer.getVelocityMagnitude() * 60);
+        glVertex2f(0.05f, 0);
+        glEnd();
+        glPopMatrix();
+
+        glMatrixMode(GL_MODELVIEW);
+        glMatrixMode(GL_PROJECTION);
     }
 
     public Camera2D getCamera() {

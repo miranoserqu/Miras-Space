@@ -30,7 +30,7 @@ public class ClientLevel extends Level {
     public ClientLevel() {
         super();
         this.controllers = InputDevices.init().getAll();
-        this.renderer = new LWJGLRenderer(Option.WIDTH_RESOLUTION.getValue(), Option.HEIGHT_RESOLUTION.getValue(), null, this.remotePlayers);
+        this.renderer = new LWJGLRenderer(Option.WIDTH_RESOLUTION.get().getValue(), Option.HEIGHT_RESOLUTION.get().getValue(), null, this.remotePlayers);
         this.renderer.init();
         Game.getInstance().registerClient(this);
     }

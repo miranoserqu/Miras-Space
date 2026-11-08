@@ -22,7 +22,7 @@ public class Camera2D {
      */
     public void updateMatrices(int windowWidth, int windowHeight) {
         // 1. Calcular cuántas unidades entran en pantalla según la altura y el zoom
-        float unitsInHeight = (float) ((windowHeight / PIXELS_PER_UNIT) / Option.ZOOM.getValue());
+        float unitsInHeight = (float) ((windowHeight / PIXELS_PER_UNIT) / Option.ZOOM.get().getValue());
         float aspectRatio = (float) windowWidth / (float) windowHeight;
         float unitsInWidth = unitsInHeight * aspectRatio;
 

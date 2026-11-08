@@ -1,9 +1,12 @@
 package com.miranoserqu.miras_space;
 
+import com.miranoserqu.miras_space.util.ScreenUtils;
 import org.lwjgl.glfw.GLFW;
 
 import java.awt.*;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.function.Supplier;
 
 public class Option<A> {
 
@@ -153,10 +156,10 @@ public class Option<A> {
         public abstract long monitor();
     }
 
-    public static final IntegerOption HEIGHT_RESOLUTION = new IntegerOption("height_resolution", "options:height_resolution_name", "options:height_resolution_description", GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice().getDisplayMode().getHeight());
-    public static final IntegerOption WIDTH_RESOLUTION = new IntegerOption("width_resolution", "options:width_resolution_name", "options:width_resolution_description", GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice().getDisplayMode().getWidth());
-    public static final ElectionOption<WindowType> WINDOW_TYPE = new ElectionOption<>("window_type", "options:window_type", "options:window_type_description", WindowType.FULL_SCREEN);
-    public static final DoubleOption ZOOM = new DoubleOption("zoom", "options:zoom", "options:zoom_description", 1, 3, 0.5);
-    public static final Option<String> LANG = new Option<>("lang", "options:lang", "options:lang_description", "data/miras_space/lang-usa.json");
+    public static final Supplier<IntegerOption> HEIGHT_RESOLUTION = () -> new IntegerOption("height_resolution", "options:height_resolution_name", "options:height_resolution_description", ScreenUtils.getPrimaryScreenResolution().height());
+    public static final Supplier<IntegerOption> WIDTH_RESOLUTION = () -> new IntegerOption("width_resolution", "options:width_resolution_name", "options:width_resolution_description", ScreenUtils.getPrimaryScreenResolution().width());
+    public static final Supplier<ElectionOption<WindowType>> WINDOW_TYPE = () -> new ElectionOption<>("window_type", "options:window_type", "options:window_type_description", WindowType.FULL_SCREEN);
+    public static final Supplier<DoubleOption> ZOOM = () -> new DoubleOption("zoom", "options:zoom", "options:zoom_description", 1, 3, 0.5);
+    public static final Supplier<Option<String>> LANG = () -> new Option<>("lang", "options:lang", "options:lang_description", "data/miras_space/lang-usa.json");
 
 }

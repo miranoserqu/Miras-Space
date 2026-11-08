@@ -34,8 +34,8 @@ public class ServerLevel extends Level {
      */
     public ServerLevel() {
         super();
-        this.boundaryX = Option.WIDTH_RESOLUTION.getValue();
-        this.boundaryY = Option.HEIGHT_RESOLUTION.getValue();
+        this.boundaryX = 2000;
+        this.boundaryY = 2000;
         this.players = new HashMap<>();
         this.entities = new HashMap<>();
         this.running = false;

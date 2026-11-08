@@ -41,7 +41,7 @@ public class Translatable {
     private static final Map<String, String> translations = new HashMap<>();
 
     public static void load(){
-        File file = new File(Option.LANG.getValue());
+        File file = new File(Option.LANG.get().getValue());
         JSONObject json = new JSONObject(file);
         for(String key : json.keySet()){
             translations.putIfAbsent(key, json.getString(key));
