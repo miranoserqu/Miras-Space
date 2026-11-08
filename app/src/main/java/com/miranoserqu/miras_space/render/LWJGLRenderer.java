@@ -52,9 +52,7 @@ public class LWJGLRenderer {
     private int textureWidth = 256;
     private int textureHeight = 256;
 
-    public LWJGLRenderer(int width, int height, ClientPlayer player, Map<UUID, RemotePlayer> remotePlayers) {
-        this.width = width;
-        this.height = height;
+    public LWJGLRenderer(ClientPlayer player, Map<UUID, RemotePlayer> remotePlayers) {
         this.localPlayer = player;
         this.remotePlayers = remotePlayers;
     }
@@ -69,6 +67,9 @@ public class LWJGLRenderer {
         if (!glfwInit()) {
             throw new IllegalStateException("Unable to initialize GLFW");
         }
+
+        this.width = Option.WIDTH_RESOLUTION.get().getValue();
+        this.height = Option.HEIGHT_RESOLUTION.get().getValue();
 
         if (localPlayer != null) {
             camera.setPosition((float) localPlayer.getX(), (float) localPlayer.getY());
